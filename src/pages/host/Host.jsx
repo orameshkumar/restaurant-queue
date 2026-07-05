@@ -54,14 +54,19 @@ function timeOccupied(seatedAt) {
 
 // ─── Assign Modal ─────────────────────────────────────────────────────────────
 
-function AssignModal({ table, waitingBookings, onClose, onAssigned }) {
+// table prop is the pre-selected table (from floor plan) or null (from queue — user must pick)
+function AssignModal({ table: preselectedTable, availableTables = [], waitingBookings, preselectedBookingId, onClose, onAssigned }) {
   const [search, setSearch] = useState('');
-  const [selectedBookingId, setSelectedBookingId] = useState(null);
+  const [selectedBookingId, setSelectedBookingId] = useState(preselectedBookingId ?? null);
+  const [selectedTableId, setSelectedTableId] = useState(preselectedTable?.id ?? '');
   const [guestName, setGuestName] = useState('');
   const [mobile, setMobile] = useState('');
   const [partySize, setPartySize] = useState(1);
   const [isWalkIn, setIsWalkIn] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Resolved table: either pre-selected from floor plan, or chosen by user
+  const resolvedTable = preselectedTable ?? availableTables.find(t => t.id === selectedTableId) ?? null;
 
   const filtered = useMemo(() => {
     if (!search.trim()) return waitingBookings;
@@ -74,6 +79,10 @@ function AssignModal({ table, waitingBookings, onClose, onAssigned }) {
   }, [search, waitingBookings]);
 
   async function handleAssign() {
+    if (!resolvedTable) {
+      toast.error('Select an available table first.');
+      return;
+    }
     if (!isWalkIn && !selectedBookingId) {
       toast.error('Select a guest from the queue or use walk-in.');
       return;
@@ -98,25 +107,25 @@ function AssignModal({ table, waitingBookings, onClose, onAssigned }) {
           token: generateToken(),
           firedAt: serverTimestamp(),
           queueSequence: Date.now(),
-          tableId: table.id,
+          tableId: resolvedTable.id,
           seatedAt: serverTimestamp(),
         });
         bookingId = ref.id;
       } else {
         await updateDoc(doc(db, 'bookings', bookingId), {
           status: 'seated',
-          tableId: table.id,
+          tableId: resolvedTable.id,
           seatedAt: serverTimestamp(),
         });
       }
 
-      await updateDoc(doc(db, 'tables', table.id), {
+      await updateDoc(doc(db, 'tables', resolvedTable.id), {
         status: 'occupied',
         currentBookingId: bookingId,
         seatedAt: serverTimestamp(),
       });
 
-      toast.success(`Table ${table.tableNumber} assigned.`);
+      toast.success(`Table ${resolvedTable.tableNumber} assigned.`);
       onAssigned();
     } catch (err) {
       console.error(err);
@@ -131,12 +140,34 @@ function AssignModal({ table, waitingBookings, onClose, onAssigned }) {
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <h2 className="text-lg font-semibold text-gray-800">
-            Assign Table {table.tableNumber}
+            {preselectedTable ? `Assign Table ${preselectedTable.tableNumber}` : 'Seat Guest'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
         </div>
 
         <div className="p-6 space-y-4">
+          {/* Table selector — only shown when opened from queue (no pre-selected table) */}
+          {!preselectedTable && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Select Available Table *</label>
+              <select
+                value={selectedTableId}
+                onChange={e => setSelectedTableId(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+              >
+                <option value="">— choose a table —</option>
+                {availableTables.map(t => (
+                  <option key={t.id} value={t.id}>
+                    Table {t.tableNumber} · {t.section} · Seats {t.capacity}
+                  </option>
+                ))}
+              </select>
+              {availableTables.length === 0 && (
+                <p className="text-xs text-red-500 mt-1">No available tables right now.</p>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button
               onClick={() => { setIsWalkIn(false); setSelectedBookingId(null); }}
@@ -666,11 +697,13 @@ function QueueTab() {
         )}
       </div>
 
-      {/* Assign modal triggered from queue */}
-      {assignTarget && tables && (
+      {/* Assign modal triggered from queue — user picks table; booking pre-selected */}
+      {assignTarget && (
         <AssignModal
-          table={{ id: '__queue__', tableNumber: 'TBD', ...assignTarget }}
-          waitingBookings={waitingBookings.filter(b => b.id !== assignTarget.id)}
+          table={null}
+          availableTables={tables.filter(t => t.status === 'available')}
+          waitingBookings={waitingBookings}
+          preselectedBookingId={assignTarget.id}
           onClose={() => setAssignTarget(null)}
           onAssigned={() => setAssignTarget(null)}
         />
