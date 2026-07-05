@@ -43,7 +43,7 @@ function StatusBadge({ status }) {
 // ─── Add Items Modal ─────────────────────────────────────────────────────────
 
 function AddItemsModal({ tableId, tableStatus, onClose }) {
-  const { docs: menuItems } = useCollection('menuItems', 'name', 'asc', [['available', '==', true]]);
+  const { docs: menuItems = [] } = useCollection('menuItems', 'name', 'asc', [['available', '==', true]]);
 
   const grouped = useMemo(() => {
     const map = {};
@@ -200,7 +200,7 @@ function AddItemsModal({ tableId, tableStatus, onClose }) {
 // ─── Handoff Modal ────────────────────────────────────────────────────────────
 
 function HandoffModal({ table, onClose }) {
-  const { docs: staffList } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']]);
+  const { docs: staffList = [] } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']]);
   const [selectedId, setSelectedId] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -255,7 +255,7 @@ function HandoffModal({ table, onClose }) {
 // ─── Order Panel ─────────────────────────────────────────────────────────────
 
 function OrderPanel({ table, onRequestBill, onAddItems }) {
-  const { docs: orderItems } = useCollection(
+  const { docs: orderItems = [] } = useCollection(
     'orderItems',
     'firedAt',
     'asc',
@@ -389,14 +389,14 @@ export default function Server() {
 
   // My assigned tables (active statuses)
   const activeStatuses = ['occupied', 'ordering', 'eating', 'bill_requested'];
-  const { docs: allTables } = useCollection('tables', 'tableNumber', 'asc', [
+  const { docs: allTables = [] } = useCollection('tables', 'tableNumber', 'asc', [
     ['assignedServerId', '==', profile?.id ?? '__none__'],
   ]);
   const myTables = (allTables ?? []).filter((t) => activeStatuses.includes(t.status));
 
   // All order items for pending count (across my tables)
   const myTableIds = myTables.map((t) => t.id);
-  const { docs: allOrderItems } = useCollection('orderItems', 'firedAt', 'asc');
+  const { docs: allOrderItems = [] } = useCollection('orderItems', 'firedAt', 'asc');
   const pendingByTable = useMemo(() => {
     const map = {};
     (allOrderItems ?? []).forEach((item) => {

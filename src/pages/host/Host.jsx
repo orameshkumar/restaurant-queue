@@ -320,7 +320,7 @@ function TableCard({ table, waitingBookings, onRefresh }) {
 // ─── Floor Plan Tab ───────────────────────────────────────────────────────────
 
 function FloorPlanTab({ waitingBookings }) {
-  const { documents: tables, loading } = useCollection('tables', 'tableNumber');
+  const { docs: tables = [], loading } = useCollection('tables', 'tableNumber');
 
   if (loading) {
     return (
@@ -366,7 +366,7 @@ function FloorPlanTab({ waitingBookings }) {
 // ─── Queue & Reservations Tab ─────────────────────────────────────────────────
 
 function QueueTab() {
-  const { documents: allBookings, loading } = useCollection('bookings', 'queueSequence', 'asc');
+  const { docs: allBookings = [], loading } = useCollection('bookings', 'queueSequence', 'asc');
 
   const [showReservationForm, setShowReservationForm] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
@@ -472,7 +472,7 @@ function QueueTab() {
     }
   }
 
-  const { documents: tables } = useCollection('tables', 'tableNumber');
+  const { docs: tables = [] } = useCollection('tables', 'tableNumber');
 
   return (
     <div className="space-y-6">
@@ -731,7 +731,7 @@ export default function Host() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState('floor');
 
-  const { documents: allBookings } = useCollection('bookings', 'queueSequence', 'asc');
+  const { docs: allBookings = [] } = useCollection('bookings', 'queueSequence', 'asc');
 
   const waitingBookings = useMemo(() => {
     if (!allBookings) return [];

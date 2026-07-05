@@ -379,7 +379,7 @@ function AvailableToggle({ available, onChange }) {
 
 export default function Menu() {
   const { user } = useAuth();
-  const { documents: items, loading } = useCollection('menuItems', 'name', 'asc');
+  const { docs: items = [], loading } = useCollection('menuItems', 'name', 'asc');
 
   const [activeCategory, setActiveCategory] = useState('All');
   const [search, setSearch] = useState('');
