@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { collection, addDoc, updateDoc, doc, serverTimestamp, getDocs, query, where } from 'firebase/firestore';
+import { useState, useMemo, useEffect } from 'react';
+import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
@@ -22,7 +22,7 @@ function VoidModal({ item, onConfirm, onClose }) {
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-md">
         <h3 className="text-lg font-semibold mb-1">Void Item</h3>
         <p className="text-sm text-gray-500 mb-4">
-          {item.name} × {item.qty} — {fmt(item.unitPrice * item.qty)}
+          {item.name} × {item.qty} — {fmt((item.price ?? item.unitPrice ?? 0) * item.qty)}
         </p>
         <label className="block text-sm font-medium mb-1">Reason *</label>
         <textarea
@@ -162,14 +162,29 @@ export default function Cashier() {
 
   const [selectedTable, setSelectedTable] = useState(null);
 
-  // Only filter by tableId — avoid '!=' operator which requires composite index with orderBy.
-  // Filter out voided items in JS below.
-  const { docs: rawItems = [] } = useCollection(
-    selectedTable ? 'orderItems' : null,
-    null,
-    null,
-    selectedTable ? [['tableId', '==', selectedTable.id]] : []
-  );
+  // ── multi-round orders for the selected table ─────────────────────────────
+  const [orders, setOrders] = useState([]);
+
+  useEffect(() => {
+    if (!selectedTable) { setOrders([]); return; }
+    const q = query(
+      collection(db, 'orders'),
+      where('tableId', '==', selectedTable.id),
+      where('status', 'not-in', ['draft', 'rejected', 'billed'])
+    );
+    const unsub = onSnapshot(q, snap => {
+      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      docs.sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+      setOrders(docs);
+    });
+    return unsub;
+  }, [selectedTable?.id]);
+
+  // ── collapsed state for round sections ───────────────────────────────────
+  const [collapsedRounds, setCollapsedRounds] = useState({});
+  function toggleRound(idx) {
+    setCollapsedRounds(prev => ({ ...prev, [idx]: !prev[idx] }));
+  }
 
   // ── local state ───────────────────────────────────────────────────────────
   const [tipOption, setTipOption] = useState('none'); // 'none' | '10' | '15' | 'custom'
@@ -182,14 +197,26 @@ export default function Cashier() {
   const [settling, setSettling] = useState(false);
 
   // ── derived ───────────────────────────────────────────────────────────────
-  const items = (rawItems ?? [])
-    .filter((i) => i.status !== 'voided')
-    .sort((a, b) => (a.firedAt?.toMillis?.() ?? 0) - (b.firedAt?.toMillis?.() ?? 0));
+  // Flatten all items across rounds, merging same menuItemId
+  const consolidatedItems = useMemo(() => {
+    const map = {};
+    orders.forEach(order => {
+      order.items?.forEach(item => {
+        const key = item.menuItemId ?? item.name;
+        if (map[key]) {
+          map[key].qty += item.qty ?? 1;
+        } else {
+          map[key] = { ...item };
+        }
+      });
+    });
+    return Object.values(map);
+  }, [orders]);
 
-  const servedItems = items.filter((i) => i.status === 'served');
-  const pendingItems = items.filter((i) => i.status !== 'served');
+  const grandTotal = orders.reduce((s, o) => s + (o.total ?? 0), 0);
 
-  const subtotal = items.reduce((s, i) => s + (i.unitPrice ?? 0) * (i.qty ?? 1), 0);
+  // subtotal for discount/tax/tip calculations is grandTotal before adjustments
+  const subtotal = grandTotal;
 
   const discountAmount = discount?.amount ?? 0;
   const discountedSubtotal = Math.max(0, subtotal - discountAmount);
@@ -207,14 +234,28 @@ export default function Cashier() {
 
   // ── actions ───────────────────────────────────────────────────────────────
   async function handleVoidItem(reason) {
+    // voidTarget here is a consolidated item (from orders[].items), not an orderItems doc.
+    // We update the item inside its parent order doc.
     try {
-      const itemRef = doc(db, 'orderItems', voidTarget.id);
-      await updateDoc(itemRef, {
-        status: 'voided',
-        voidReason: reason,
-        voidedAt: serverTimestamp(),
-        voidedBy: user?.uid,
-      });
+      // Find the order that contains this item and remove/reduce it
+      for (const order of orders) {
+        const idx = order.items?.findIndex(
+          (i) => (i.menuItemId ?? i.name) === (voidTarget.menuItemId ?? voidTarget.name)
+        );
+        if (idx !== undefined && idx >= 0) {
+          const updatedItems = order.items.filter((_, i) => i !== idx);
+          const newTotal = updatedItems.reduce((s, i) => s + (i.price ?? i.unitPrice ?? 0) * (i.qty ?? 1), 0);
+          await updateDoc(doc(db, 'orders', order.id), {
+            items: updatedItems,
+            total: newTotal,
+            voidLog: [
+              ...(order.voidLog ?? []),
+              { name: voidTarget.name, qty: voidTarget.qty, reason, voidedAt: new Date().toISOString(), voidedBy: user?.uid },
+            ],
+          });
+          break;
+        }
+      }
       toast.success(`"${voidTarget.name}" voided`);
     } catch (err) {
       toast.error('Failed to void item');
@@ -228,19 +269,13 @@ export default function Cashier() {
     if (!selectedTable) return;
     setSettling(true);
     try {
-      // 1. Create bill document
-      const billData = {
+      // 1. Create consolidated bill document
+      const billRef = await addDoc(collection(db, 'bills'), {
         tableId: selectedTable.id,
         tableNumber: selectedTable.tableNumber,
-        items: items.map((i) => ({
-          id: i.id,
-          name: i.name,
-          qty: i.qty,
-          unitPrice: i.unitPrice,
-          lineTotal: (i.unitPrice ?? 0) * (i.qty ?? 1),
-          status: i.status,
-          category: i.category ?? null,
-        })),
+        bookingId: selectedTable.currentBookingId ?? null,
+        items: consolidatedItems,
+        rounds: orders.length,
         subtotal,
         tax: TAX_RATE,
         taxAmount,
@@ -256,22 +291,16 @@ export default function Cashier() {
         serverId: selectedTable.assignedServerId ?? null,
         cashierId: user?.uid ?? null,
         status: 'closed',
-      };
+      });
 
-      const billRef = await addDoc(collection(db, 'bills'), billData);
-
-      // 2. Mark all non-voided orderItems as served
-      const itemsQ = query(
-        collection(db, 'orderItems'),
-        where('tableId', '==', selectedTable.id),
-        where('status', '!=', 'voided')
-      );
-      const itemSnap = await getDocs(itemsQ);
+      // 2. Mark ALL loaded orders as billed
       await Promise.all(
-        itemSnap.docs.map((d) =>
-          d.data().status !== 'served'
-            ? updateDoc(doc(db, 'orderItems', d.id), { status: 'served' })
-            : Promise.resolve()
+        orders.map((o) =>
+          updateDoc(doc(db, 'orders', o.id), {
+            status: 'billed',
+            billedAt: serverTimestamp(),
+            billId: billRef.id,
+          })
         )
       );
 
@@ -281,6 +310,7 @@ export default function Cashier() {
         assignedServerId: null,
         currentBookingId: null,
         lastBillId: billRef.id,
+        linkedTableId: null,
       });
 
       // 3b. Free linked table if any
@@ -291,7 +321,6 @@ export default function Cashier() {
           currentBookingId: null,
           linkedTableId: null,
         });
-        await updateDoc(doc(db, 'tables', selectedTable.id), { linkedTableId: null });
       }
 
       // 4. Update booking if present
@@ -308,6 +337,7 @@ export default function Cashier() {
       setTipOption('none');
       setCustomTip('');
       setPaymentMode('cash');
+      setCollapsedRounds({});
     } catch (err) {
       toast.error('Failed to settle bill');
       console.error(err);
@@ -401,29 +431,47 @@ export default function Cashier() {
                 </div>
               </div>
 
-              {/* Items list */}
+              {/* Order rounds */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                <h3 className="font-semibold text-gray-700 mb-3">Order Items</h3>
+                <h3 className="font-semibold text-gray-700 mb-3">
+                  Order Rounds ({orders.length})
+                </h3>
 
-                {items.length === 0 && (
-                  <p className="text-sm text-gray-400 italic">No items found for this table.</p>
+                {orders.length === 0 && (
+                  <p className="text-sm text-gray-400 italic">No confirmed orders found for this table.</p>
                 )}
 
-                {servedItems.length > 0 && (
-                  <div className="mb-4">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-green-600 mb-2">
-                      Served
-                    </p>
-                    <ItemTable items={servedItems} onVoid={setVoidTarget} />
-                  </div>
-                )}
+                {orders.map((order, idx) => {
+                  const roundTotal = order.total ?? 0;
+                  const isCollapsed = collapsedRounds[idx];
+                  return (
+                    <div key={order.id} className="mb-3 border border-gray-100 rounded-xl overflow-hidden">
+                      <button
+                        onClick={() => toggleRound(idx)}
+                        className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition text-left"
+                      >
+                        <span className="text-sm font-semibold text-gray-700">
+                          Round {idx + 1}
+                          {order.note ? <span className="ml-2 text-xs font-normal text-gray-400 italic">"{order.note}"</span> : null}
+                        </span>
+                        <span className="flex items-center gap-3 text-sm text-gray-600">
+                          <span className="font-medium">{fmt(roundTotal)}</span>
+                          <span className={`transition-transform ${isCollapsed ? '' : 'rotate-180'} text-gray-400`}>▲</span>
+                        </span>
+                      </button>
+                      {!isCollapsed && (
+                        <div className="px-4 py-3">
+                          <RoundItemTable items={order.items ?? []} onVoid={setVoidTarget} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
 
-                {pendingItems.length > 0 && (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 mb-2">
-                      Pending / In-progress
-                    </p>
-                    <ItemTable items={pendingItems} onVoid={setVoidTarget} />
+                {orders.length > 0 && (
+                  <div className="mt-3 pt-3 border-t border-gray-200 flex justify-between items-center">
+                    <span className="text-sm font-semibold text-gray-700">Grand Total (pre-adjustments)</span>
+                    <span className="text-base font-bold text-indigo-700">{fmt(grandTotal)}</span>
                   </div>
                 )}
               </div>
@@ -541,7 +589,7 @@ export default function Cashier() {
                 </button>
 
                 <button
-                  disabled={items.length === 0 || settling}
+                  disabled={orders.length === 0 || settling}
                   onClick={handleSettleBill}
                   className="ml-auto px-6 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 flex items-center gap-2"
                 >
@@ -586,47 +634,51 @@ export default function Cashier() {
   );
 }
 
-// ─── Item table sub-component ─────────────────────────────────────────────────
-function ItemTable({ items, onVoid }) {
+// ─── Round item table sub-component ──────────────────────────────────────────
+// items here are order.items[] — fields: name, qty, price (guest orders use `price`)
+function RoundItemTable({ items, onVoid }) {
   return (
     <div className="overflow-x-auto">
-    <table className="w-full text-sm min-w-[420px]">
-      <thead>
-        <tr className="text-xs text-gray-400 uppercase">
-          <th className="text-left pb-1 font-medium">Item</th>
-          <th className="text-center pb-1 font-medium w-10">Qty</th>
-          <th className="text-right pb-1 font-medium w-20">Unit</th>
-          <th className="text-right pb-1 font-medium w-20">Total</th>
-          <th className="w-10" />
-        </tr>
-      </thead>
-      <tbody>
-        {items.map((item) => (
-          <tr key={item.id} className="border-t border-gray-50 hover:bg-gray-50/60">
-            <td className="py-1.5 pr-2">
-              <span className="font-medium text-gray-700">{item.name}</span>
-              {item.notes && (
-                <span className="block text-xs text-gray-400 italic">{item.notes}</span>
-              )}
-            </td>
-            <td className="text-center text-gray-600">{item.qty ?? 1}</td>
-            <td className="text-right text-gray-600">{fmt(item.unitPrice)}</td>
-            <td className="text-right font-medium text-gray-800">
-              {fmt((item.unitPrice ?? 0) * (item.qty ?? 1))}
-            </td>
-            <td className="text-right">
-              <button
-                onClick={() => onVoid(item)}
-                title="Void item"
-                className="text-red-400 hover:text-red-600 px-1 py-0.5 rounded text-xs"
-              >
-                ✕
-              </button>
-            </td>
+      <table className="w-full text-sm min-w-[380px]">
+        <thead>
+          <tr className="text-xs text-gray-400 uppercase">
+            <th className="text-left pb-1 font-medium">Item</th>
+            <th className="text-center pb-1 font-medium w-10">Qty</th>
+            <th className="text-right pb-1 font-medium w-20">Unit</th>
+            <th className="text-right pb-1 font-medium w-20">Total</th>
+            <th className="w-10" />
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {items.map((item, idx) => {
+            const unit = item.price ?? item.unitPrice ?? 0;
+            return (
+              <tr key={item.menuItemId ?? idx} className="border-t border-gray-50 hover:bg-gray-50/60">
+                <td className="py-1.5 pr-2">
+                  <span className="font-medium text-gray-700">{item.name}</span>
+                  {item.category && (
+                    <span className="block text-xs text-gray-400">{item.category}</span>
+                  )}
+                </td>
+                <td className="text-center text-gray-600">{item.qty ?? 1}</td>
+                <td className="text-right text-gray-600">{fmt(unit)}</td>
+                <td className="text-right font-medium text-gray-800">
+                  {fmt(unit * (item.qty ?? 1))}
+                </td>
+                <td className="text-right">
+                  <button
+                    onClick={() => onVoid(item)}
+                    title="Void item"
+                    className="text-red-400 hover:text-red-600 px-1 py-0.5 rounded text-xs"
+                  >
+                    ✕
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
