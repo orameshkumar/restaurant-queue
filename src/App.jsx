@@ -13,6 +13,7 @@ import Staff    from './pages/staff/Staff'
 import Reports  from './pages/reports/Reports'
 import Settings from './pages/settings/Settings'
 import Board    from './pages/board/Board'
+import GuestOrder from './pages/guest/GuestOrder'
 
 const MANAGER_ROLES = ['admin', 'manager']
 
@@ -29,6 +30,7 @@ export default function App() {
     <Routes>
       <Route path="/login"    element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/board"    element={<Board />} />
+      <Route path="/guest/:tableId" element={<GuestOrder />} />
 
       <Route path="/"         element={<Protected><Dashboard /></Protected>} />
       <Route path="/host"     element={<Protected roles={[...MANAGER_ROLES,'host']}><Host /></Protected>} />

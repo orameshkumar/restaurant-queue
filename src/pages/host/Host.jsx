@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import QRCode from 'react-qr-code';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
@@ -196,7 +197,11 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
         ? `Tables ${resolvedTable.tableNumber} & ${resolvedTable2.tableNumber} linked and assigned.`
         : `Table ${resolvedTable.tableNumber} assigned.`
       toast.success(msg)
-      onAssigned()
+      onAssigned({
+        tableId: resolvedTable.id,
+        tableNumber: resolvedTable.tableNumber,
+        guestName: isWalkIn ? guestName.trim() : (selectedBooking?.guestName ?? 'Guest'),
+      })
     } catch (err) {
       console.error(err)
       toast.error('Failed to assign table.')
@@ -406,10 +411,45 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
   )
 }
 
+// ─── QR Code Modal ────────────────────────────────────────────────────────────
+
+function QRCodeModal({ tableId, tableNumber, guestName, onClose }) {
+  const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '')
+  const url = `${base}/guest/${tableId}`
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm text-center p-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-1">Table {tableNumber} — Seated</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          Share this QR with <span className="font-medium text-gray-700">{guestName}</span> to order directly from their phone
+        </p>
+        <div className="flex justify-center mb-5 p-3 bg-white border border-gray-200 rounded-xl">
+          <QRCode value={url} size={180} />
+        </div>
+        <p className="text-xs text-gray-400 mb-5 break-all">{url}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => navigator.clipboard?.writeText(url).then(() => alert('Link copied!'))}
+            className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition"
+          >
+            📋 Copy Link
+          </button>
+          <button onClick={onClose}
+            className="flex-1 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition">
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── Table Card ───────────────────────────────────────────────────────────────
 
 function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) {
   const [showAssign, setShowAssign] = useState(false);
+  const [qrInfo, setQrInfo] = useState(null);
 
   async function markStatus(status) {
     try {
@@ -504,8 +544,12 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
           availableTables={availableTables.filter(t => t.id !== table.id)}
           waitingBookings={waitingBookings}
           onClose={() => setShowAssign(false)}
-          onAssigned={() => setShowAssign(false)}
+          onAssigned={(info) => { setShowAssign(false); setQrInfo(info); }}
         />
+      )}
+
+      {qrInfo && (
+        <QRCodeModal {...qrInfo} onClose={() => setQrInfo(null)} />
       )}
     </>
   );
@@ -566,6 +610,7 @@ function QueueTab() {
 
   const [showReservationForm, setShowReservationForm] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
+  const [qrInfo, setQrInfo] = useState(null);
 
   // Walk-in form state
   const [wiGuestName, setWiGuestName]         = useState('');
@@ -665,9 +710,91 @@ function QueueTab() {
   }
 
   const { docs: tables = [] } = useCollection('tables', 'tableNumber');
+  const { docs: draftOrders = [] } = useCollection('orders', 'createdAt', 'asc', [['status', '==', 'draft']]);
+
+  async function confirmOrder(orderId) {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        status: 'new',
+        confirmedAt: serverTimestamp(),
+      });
+      toast.success('Order confirmed — sent to kitchen.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to confirm order.');
+    }
+  }
+
+  async function rejectOrder(orderId) {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), { status: 'rejected' });
+      toast.success('Order rejected.');
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to reject order.');
+    }
+  }
 
   return (
     <div className="space-y-6">
+      {/* Pending Draft Orders */}
+      {draftOrders.length > 0 && (
+        <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-amber-100 bg-amber-50 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-amber-800">Pending Guest Orders</h3>
+              <p className="text-xs text-amber-600 mt-0.5">Confirm to send to kitchen, or reject.</p>
+            </div>
+            <span className="bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">{draftOrders.length}</span>
+          </div>
+          <div className="divide-y divide-gray-100">
+            {draftOrders.map(order => (
+              <div key={order.id} className="px-5 py-4">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <p className="font-medium text-gray-800 text-sm">
+                      Table {order.tableNumber}
+                      <span className="ml-2 text-gray-500 font-normal">· {order.guestName}</span>
+                    </p>
+                    {order.createdAt?.toDate && (
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {order.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    )}
+                  </div>
+                  <p className="text-amber-600 font-semibold text-sm flex-shrink-0">₹{order.total?.toLocaleString('en-IN')}</p>
+                </div>
+                <ul className="text-xs text-gray-600 space-y-0.5 mb-3">
+                  {(order.items ?? []).map((item, i) => (
+                    <li key={i} className="flex justify-between">
+                      <span>{item.qty}× {item.name}</span>
+                      <span className="text-gray-400">₹{(item.price * item.qty).toLocaleString('en-IN')}</span>
+                    </li>
+                  ))}
+                </ul>
+                {order.note && (
+                  <p className="text-xs text-gray-500 italic mb-3">Note: {order.note}</p>
+                )}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => confirmOrder(order.id)}
+                    className="flex-1 py-1.5 bg-green-600 text-white text-xs font-semibold rounded-lg hover:bg-green-700 transition"
+                  >
+                    ✓ Confirm & Send to Kitchen
+                  </button>
+                  <button
+                    onClick={() => rejectOrder(order.id)}
+                    className="px-4 py-1.5 border border-red-200 text-red-600 text-xs font-semibold rounded-lg hover:bg-red-50 transition"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Walk-in Form */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
         <div className="px-5 py-4 border-b border-gray-100">
@@ -870,8 +997,12 @@ function QueueTab() {
           waitingBookings={waitingBookings}
           preselectedBookingId={assignTarget.id}
           onClose={() => setAssignTarget(null)}
-          onAssigned={() => setAssignTarget(null)}
+          onAssigned={(info) => { setAssignTarget(null); setQrInfo(info); }}
         />
+      )}
+
+      {qrInfo && (
+        <QRCodeModal {...qrInfo} onClose={() => setQrInfo(null)} />
       )}
     </div>
   );
@@ -884,6 +1015,7 @@ export default function Host() {
   const [activeTab, setActiveTab] = useState('floor');
 
   const { docs: allBookings = [] } = useCollection('bookings', 'queueSequence', 'asc');
+  const { docs: draftOrders = [] } = useCollection('orders', 'createdAt', 'asc', [['status', '==', 'draft']]);
 
   const waitingBookings = useMemo(() => {
     if (!allBookings) return [];
@@ -892,7 +1024,7 @@ export default function Host() {
 
   const tabs = [
     { id: 'floor', label: 'Floor Plan' },
-    { id: 'queue', label: 'Queue & Reservations' },
+    { id: 'queue', label: 'Queue & Reservations', draftCount: draftOrders.length },
   ];
 
   return (
@@ -925,6 +1057,11 @@ export default function Host() {
               {tab.id === 'queue' && waitingBookings.length > 0 && (
                 <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full font-semibold ${activeTab === tab.id ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-700'}`}>
                   {waitingBookings.length}
+                </span>
+              )}
+              {tab.id === 'queue' && tab.draftCount > 0 && (
+                <span className={`ml-1 text-xs px-1.5 py-0.5 rounded-full font-semibold ${activeTab === tab.id ? 'bg-amber-400 text-white' : 'bg-amber-500 text-white'}`}>
+                  {tab.draftCount} orders
                 </span>
               )}
             </button>
