@@ -378,11 +378,7 @@ function QueueTab() {
   const [wiPref, setWiPref]                   = useState('Any');
   const [wiLoading, setWiLoading]             = useState(false);
 
-  // Reservation form state
-  const [resGuestName, setResGuestName]       = useState('');
-  const [resMobile, setResMobile]             = useState('');
-  const [resPartySize, setResPartySize]       = useState(2);
-  const [resPref, setResPref]                 = useState('Any');
+  // Reservation form state — reuses walk-in fields, only needs date/time
   const [resDateTime, setResDateTime]         = useState('');
   const [resLoading, setResLoading]           = useState(false);
 
@@ -425,16 +421,16 @@ function QueueTab() {
 
   async function addReservation(e) {
     e.preventDefault();
-    if (!resGuestName.trim()) { toast.error('Guest name is required.'); return; }
+    if (!wiGuestName.trim()) { toast.error('Guest name is required — fill in the walk-in form above.'); return; }
     if (!resDateTime) { toast.error('Reservation date/time is required.'); return; }
     setResLoading(true);
     try {
       const dt = new Date(resDateTime);
       await addDoc(collection(db, 'bookings'), {
-        guestName: resGuestName.trim(),
-        mobile: resMobile.trim(),
-        partySize: Number(resPartySize),
-        tablePreference: resPref,
+        guestName: wiGuestName.trim(),
+        mobile: wiMobile.trim(),
+        partySize: Number(wiPartySize),
+        tablePreference: wiPref,
         type: 'reservation',
         status: 'waiting',
         date: format(dt, 'yyyy-MM-dd'),
@@ -444,7 +440,7 @@ function QueueTab() {
         queueSequence: dt.getTime(),
       });
       toast.success('Reservation created.');
-      setResGuestName(''); setResMobile(''); setResPartySize(2); setResPref('Any'); setResDateTime('');
+      setWiGuestName(''); setWiMobile(''); setWiPartySize(2); setWiPref('Any'); setResDateTime('');
       setShowReservationForm(false);
     } catch (err) {
       console.error(err);
@@ -499,7 +495,7 @@ function QueueTab() {
                 type="tel"
                 value={wiMobile}
                 onChange={e => setWiMobile(e.target.value)}
-                placeholder="+1 555 0100"
+                placeholder="+91 98765 43210"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
             </div>
@@ -543,66 +539,24 @@ function QueueTab() {
           </div>
         </form>
 
-        {/* Reservation Form (collapsible) */}
+        {/* Reservation Form (collapsible) — guest details reused from walk-in form above */}
         {showReservationForm && (
           <div className="border-t border-gray-100 bg-gray-50 rounded-b-xl">
             <div className="px-5 py-4 border-b border-gray-100">
               <h3 className="font-semibold text-gray-700 text-sm">New Reservation</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Guest details are taken from the form above — just pick a date &amp; time.</p>
             </div>
             <form onSubmit={addReservation} className="p-5">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="flex flex-wrap items-end gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Guest Name *</label>
-                  <input
-                    type="text"
-                    value={resGuestName}
-                    onChange={e => setResGuestName(e.target.value)}
-                    placeholder="Jane Doe"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Mobile</label>
-                  <input
-                    type="tel"
-                    value={resMobile}
-                    onChange={e => setResMobile(e.target.value)}
-                    placeholder="+1 555 0200"
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Party Size</label>
-                  <input
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={resPartySize}
-                    onChange={e => setResPartySize(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Table Preference</label>
-                  <select
-                    value={resPref}
-                    onChange={e => setResPref(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-                  >
-                    {TABLE_PREFS.map(p => <option key={p}>{p}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Date & Time *</label>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Date &amp; Time *</label>
                   <input
                     type="datetime-local"
                     value={resDateTime}
                     onChange={e => setResDateTime(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                    className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"
                   />
                 </div>
-              </div>
-              <div className="mt-4">
                 <button
                   type="submit"
                   disabled={resLoading}
