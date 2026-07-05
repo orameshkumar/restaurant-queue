@@ -223,15 +223,16 @@ export default function KDS() {
   const [selectedStation, setSelectedStation] = useState('All');
   const [tick, setTick] = useState(0);
 
-  // Live collections
-  const { data: orderItems = [], loading: itemsLoading } = useCollection(
-    'orderItems',
-    'firedAt',
-    'asc',
-    [['status', 'in', ['placed', 'in-kitchen', 'in-preparation', 'ready']]]
-  );
-  const { data: tables = [] } = useCollection('tables', 'tableNumber');
-  const { data: staff = [] } = useCollection('staff', 'name');
+  // Live collections — no orderBy combined with 'in' filter (needs composite index);
+  // sort by firedAt in JS instead.
+  const { docs: rawOrderItems = [], loading: itemsLoading } = useCollection('orderItems', null, null);
+  const { docs: tables = [] } = useCollection('tables', 'tableNumber');
+  const { docs: staff = [] } = useCollection('staff', 'name');
+
+  // Filter active statuses and sort by firedAt ascending
+  const orderItems = rawOrderItems
+    .filter((i) => ['placed', 'in-kitchen', 'in-preparation', 'ready'].includes(i.status))
+    .sort((a, b) => (a.firedAt?.toMillis?.() ?? 0) - (b.firedAt?.toMillis?.() ?? 0));
 
   // Build staff id→name map
   const staffMap = useMemo(() => {

@@ -156,22 +156,19 @@ export default function Cashier() {
   const { user } = useAuth();
 
   // ── data ──────────────────────────────────────────────────────────────────
-  const { documents: tables } = useCollection('tables', 'tableNumber', 'asc', [
-    { field: 'status', op: '==', value: 'bill_requested' },
+  const { docs: tables = [] } = useCollection('tables', 'tableNumber', 'asc', [
+    ['status', '==', 'bill_requested'],
   ]);
 
   const [selectedTable, setSelectedTable] = useState(null);
 
-  const { documents: rawItems } = useCollection(
+  // Only filter by tableId — avoid '!=' operator which requires composite index with orderBy.
+  // Filter out voided items in JS below.
+  const { docs: rawItems = [] } = useCollection(
     selectedTable ? 'orderItems' : null,
-    'createdAt',
-    'asc',
-    selectedTable
-      ? [
-          { field: 'tableId', op: '==', value: selectedTable.id },
-          { field: 'status', op: '!=', value: 'voided' },
-        ]
-      : []
+    null,
+    null,
+    selectedTable ? [['tableId', '==', selectedTable.id]] : []
   );
 
   // ── local state ───────────────────────────────────────────────────────────
@@ -185,7 +182,9 @@ export default function Cashier() {
   const [settling, setSettling] = useState(false);
 
   // ── derived ───────────────────────────────────────────────────────────────
-  const items = rawItems ?? [];
+  const items = (rawItems ?? [])
+    .filter((i) => i.status !== 'voided')
+    .sort((a, b) => (a.firedAt?.toMillis?.() ?? 0) - (b.firedAt?.toMillis?.() ?? 0));
 
   const servedItems = items.filter((i) => i.status === 'served');
   const pendingItems = items.filter((i) => i.status !== 'served');
