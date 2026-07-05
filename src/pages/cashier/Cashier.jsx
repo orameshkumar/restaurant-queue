@@ -283,6 +283,17 @@ export default function Cashier() {
         lastBillId: billRef.id,
       });
 
+      // 3b. Free linked table if any
+      if (selectedTable.linkedTableId) {
+        await updateDoc(doc(db, 'tables', selectedTable.linkedTableId), {
+          status: 'cleaning',
+          assignedServerId: null,
+          currentBookingId: null,
+          linkedTableId: null,
+        });
+        await updateDoc(doc(db, 'tables', selectedTable.id), { linkedTableId: null });
+      }
+
       // 4. Update booking if present
       if (selectedTable.currentBookingId) {
         await updateDoc(doc(db, 'bookings', selectedTable.currentBookingId), {

@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -52,137 +52,189 @@ function timeOccupied(seatedAt) {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
+// ─── Auto-suggest helper ──────────────────────────────────────────────────────
+
+function autoSuggest(partySize, preference, availableTables) {
+  if (!partySize || availableTables.length === 0) return null
+
+  const preferred = preference && preference !== 'Any'
+    ? availableTables.filter(t => t.section === preference)
+    : []
+  const pool = preferred.length ? preferred : availableTables
+
+  // 1. Single table — smallest capacity that fits, prefer preference section
+  const single = pool
+    .filter(t => t.capacity >= partySize)
+    .sort((a, b) => a.capacity - b.capacity)
+  if (single.length > 0) return { type: 'single', tables: [single[0]] }
+
+  // Fallback: any section single fit
+  const singleAny = availableTables
+    .filter(t => t.capacity >= partySize)
+    .sort((a, b) => a.capacity - b.capacity)
+  if (singleAny.length > 0) return { type: 'single', tables: [singleAny[0]] }
+
+  // 2. Two tables — prefer same section, pick largest two that combine to fit
+  const sorted = [...availableTables].sort((a, b) => b.capacity - a.capacity)
+  for (let i = 0; i < sorted.length; i++) {
+    for (let j = i + 1; j < sorted.length; j++) {
+      if (sorted[i].capacity + sorted[j].capacity >= partySize) {
+        return { type: 'linked', tables: [sorted[i], sorted[j]] }
+      }
+    }
+  }
+
+  return null // no solution found
+}
+
 // ─── Assign Modal ─────────────────────────────────────────────────────────────
 
 // table prop is the pre-selected table (from floor plan) or null (from queue — user must pick)
 function AssignModal({ table: preselectedTable, availableTables = [], waitingBookings, preselectedBookingId, onClose, onAssigned }) {
-  const [search, setSearch] = useState('');
-  const [selectedBookingId, setSelectedBookingId] = useState(preselectedBookingId ?? null);
-  const [selectedTableId, setSelectedTableId] = useState(preselectedTable?.id ?? '');
-  const [guestName, setGuestName] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [partySize, setPartySize] = useState(1);
-  const [isWalkIn, setIsWalkIn] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [search, setSearch]                   = useState('')
+  const [selectedBookingId, setSelectedBookingId] = useState(preselectedBookingId ?? null)
+  const [selectedTableId, setSelectedTableId] = useState(preselectedTable?.id ?? '')
+  const [linkedMode, setLinkedMode]           = useState(false)
+  const [secondTableId, setSecondTableId]     = useState('')
+  const [guestName, setGuestName]             = useState('')
+  const [mobile, setMobile]                   = useState('')
+  const [partySize, setPartySize]             = useState(1)
+  const [isWalkIn, setIsWalkIn]               = useState(false)
+  const [loading, setLoading]                 = useState(false)
 
-  // Resolved table: either pre-selected from floor plan, or chosen by user
-  const resolvedTable = preselectedTable ?? availableTables.find(t => t.id === selectedTableId) ?? null;
+  // Effective party size from selected booking or walk-in input
+  const selectedBooking = waitingBookings.find(b => b.id === selectedBookingId)
+  const effectivePartySize = isWalkIn ? Number(partySize) : (selectedBooking?.partySize ?? 0)
+  const effectivePreference = isWalkIn ? 'Any' : (selectedBooking?.tablePreference ?? 'Any')
+
+  // Auto-suggest — runs whenever party size / preference / available tables change
+  const suggestion = useMemo(
+    () => preselectedTable ? null : autoSuggest(effectivePartySize, effectivePreference, availableTables),
+    [effectivePartySize, effectivePreference, JSON.stringify(availableTables.map(t => t.id))]
+  )
+
+  // Apply suggestion automatically when it changes
+  useEffect(() => {
+    if (!suggestion) return
+    if (suggestion.type === 'single') {
+      setSelectedTableId(suggestion.tables[0].id)
+      setLinkedMode(false)
+      setSecondTableId('')
+    } else {
+      setSelectedTableId(suggestion.tables[0].id)
+      setSecondTableId(suggestion.tables[1].id)
+      setLinkedMode(true)
+    }
+  }, [suggestion?.type, suggestion?.tables?.map(t => t.id).join(',')])
+
+  const resolvedTable  = preselectedTable ?? availableTables.find(t => t.id === selectedTableId) ?? null
+  const resolvedTable2 = linkedMode ? availableTables.find(t => t.id === secondTableId) ?? null : null
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return waitingBookings;
-    const q = search.toLowerCase();
-    return waitingBookings.filter(
-      b =>
-        (b.token && b.token.toLowerCase().includes(q)) ||
-        (b.guestName && b.guestName.toLowerCase().includes(q))
-    );
-  }, [search, waitingBookings]);
+    if (!search.trim()) return waitingBookings
+    const q = search.toLowerCase()
+    return waitingBookings.filter(b =>
+      (b.token && b.token.toLowerCase().includes(q)) ||
+      (b.guestName && b.guestName.toLowerCase().includes(q))
+    )
+  }, [search, waitingBookings])
 
   async function handleAssign() {
-    if (!resolvedTable) {
-      toast.error('Select an available table first.');
-      return;
-    }
-    if (!isWalkIn && !selectedBookingId) {
-      toast.error('Select a guest from the queue or use walk-in.');
-      return;
-    }
-    if (isWalkIn && !guestName.trim()) {
-      toast.error('Enter guest name.');
-      return;
-    }
-    setLoading(true);
+    if (!resolvedTable) { toast.error('Select an available table first.'); return }
+    if (linkedMode && !resolvedTable2) { toast.error('Select the second table for linking.'); return }
+    if (!isWalkIn && !selectedBookingId) { toast.error('Select a guest from the queue or use walk-in.'); return }
+    if (isWalkIn && !guestName.trim()) { toast.error('Enter guest name.'); return }
+
+    setLoading(true)
     try {
-      let bookingId = selectedBookingId;
+      let bookingId = selectedBookingId
+      const tableIds = [resolvedTable.id, ...(resolvedTable2 ? [resolvedTable2.id] : [])]
 
       if (isWalkIn) {
         const ref = await addDoc(collection(db, 'bookings'), {
-          guestName: guestName.trim(),
-          mobile: mobile.trim(),
-          partySize: Number(partySize),
+          guestName:      guestName.trim(),
+          mobile:         mobile.trim(),
+          partySize:      Number(partySize),
           tablePreference: 'Any',
-          type: 'walk-in',
-          status: 'seated',
-          date: TODAY,
-          token: generateToken(),
-          firedAt: serverTimestamp(),
-          queueSequence: Date.now(),
-          tableId: resolvedTable.id,
-          seatedAt: serverTimestamp(),
-        });
-        bookingId = ref.id;
+          type:           'walk-in',
+          status:         'seated',
+          date:           TODAY,
+          token:          generateToken(),
+          firedAt:        serverTimestamp(),
+          queueSequence:  Date.now(),
+          tableId:        resolvedTable.id,
+          tableIds,
+          seatedAt:       serverTimestamp(),
+        })
+        bookingId = ref.id
       } else {
         await updateDoc(doc(db, 'bookings', bookingId), {
-          status: 'seated',
-          tableId: resolvedTable.id,
+          status:   'seated',
+          tableId:  resolvedTable.id,
+          tableIds,
           seatedAt: serverTimestamp(),
-        });
+        })
       }
 
       await updateDoc(doc(db, 'tables', resolvedTable.id), {
-        status: 'occupied',
+        status:           'occupied',
         currentBookingId: bookingId,
-        seatedAt: serverTimestamp(),
-      });
+        linkedTableId:    resolvedTable2?.id ?? null,
+        seatedAt:         serverTimestamp(),
+      })
 
-      toast.success(`Table ${resolvedTable.tableNumber} assigned.`);
-      onAssigned();
+      if (resolvedTable2) {
+        await updateDoc(doc(db, 'tables', resolvedTable2.id), {
+          status:           'occupied',
+          currentBookingId: bookingId,
+          linkedTableId:    resolvedTable.id,
+          seatedAt:         serverTimestamp(),
+        })
+      }
+
+      const msg = resolvedTable2
+        ? `Tables ${resolvedTable.tableNumber} & ${resolvedTable2.tableNumber} linked and assigned.`
+        : `Table ${resolvedTable.tableNumber} assigned.`
+      toast.success(msg)
+      onAssigned()
     } catch (err) {
-      console.error(err);
-      toast.error('Failed to assign table.');
+      console.error(err)
+      toast.error('Failed to assign table.')
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   }
 
+  const combinedCapacity = (resolvedTable?.capacity ?? 0) + (resolvedTable2?.capacity ?? 0)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
-        <div className="flex items-center justify-between px-6 py-4 border-b">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-800">
             {preselectedTable ? `Assign Table ${preselectedTable.tableNumber}` : 'Seat Guest'}
           </h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
         </div>
 
-        <div className="p-6 space-y-4">
-          {/* Table selector — only shown when opened from queue (no pre-selected table) */}
-          {!preselectedTable && (
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Select Available Table *</label>
-              <select
-                value={selectedTableId}
-                onChange={e => setSelectedTableId(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-              >
-                <option value="">— choose a table —</option>
-                {availableTables.map(t => (
-                  <option key={t.id} value={t.id}>
-                    Table {t.tableNumber} · {t.section} · Seats {t.capacity}
-                  </option>
-                ))}
-              </select>
-              {availableTables.length === 0 && (
-                <p className="text-xs text-red-500 mt-1">No available tables right now.</p>
-              )}
-            </div>
-          )}
-
+        <div className="p-6 space-y-4 overflow-y-auto flex-1">
+          {/* Guest source toggle */}
           <div className="flex gap-2">
             <button
-              onClick={() => { setIsWalkIn(false); setSelectedBookingId(null); }}
+              onClick={() => { setIsWalkIn(false); setSelectedBookingId(null) }}
               className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${!isWalkIn ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
             >
               From Queue
             </button>
             <button
-              onClick={() => { setIsWalkIn(true); setSelectedBookingId(null); }}
+              onClick={() => { setIsWalkIn(true); setSelectedBookingId(null) }}
               className={`flex-1 py-2 rounded-lg text-sm font-medium border transition ${isWalkIn ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
             >
               Walk-in
             </button>
           </div>
 
+          {/* Guest selection */}
           {!isWalkIn ? (
             <>
               <input
@@ -192,7 +244,7 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
                 onChange={e => setSearch(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
-              <div className="max-h-48 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-lg">
+              <div className="max-h-40 overflow-y-auto divide-y divide-gray-100 border border-gray-200 rounded-lg">
                 {filtered.length === 0 ? (
                   <p className="text-sm text-gray-400 text-center py-4">No waiting guests.</p>
                 ) : (
@@ -211,69 +263,178 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
             </>
           ) : (
             <div className="space-y-3">
-              <input
-                type="text"
-                placeholder="Guest name *"
-                value={guestName}
-                onChange={e => setGuestName(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-              <input
-                type="tel"
-                placeholder="Mobile"
-                value={mobile}
-                onChange={e => setMobile(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-              <input
-                type="number"
-                placeholder="Party size"
-                min={1}
-                value={partySize}
-                onChange={e => setPartySize(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
+              <input type="text" placeholder="Guest name *" value={guestName} onChange={e => setGuestName(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <input type="tel" placeholder="+91 98765 43210" value={mobile} onChange={e => setMobile(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              <input type="number" placeholder="Party size" min={1} value={partySize} onChange={e => setPartySize(e.target.value)}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            </div>
+          )}
+
+          {/* Auto-suggestion banner */}
+          {!preselectedTable && suggestion && effectivePartySize > 0 && (
+            <div className={`rounded-lg px-4 py-3 text-sm flex items-start gap-2 ${suggestion.type === 'linked' ? 'bg-amber-50 border border-amber-200' : 'bg-green-50 border border-green-200'}`}>
+              <span className="text-lg leading-none mt-0.5">{suggestion.type === 'linked' ? '🔗' : '✅'}</span>
+              <div>
+                <p className={`font-medium ${suggestion.type === 'linked' ? 'text-amber-800' : 'text-green-800'}`}>
+                  {suggestion.type === 'single'
+                    ? `Best fit: Table ${suggestion.tables[0].tableNumber} (${suggestion.tables[0].section}, ${suggestion.tables[0].capacity} seats)`
+                    : `No single table fits — linking Table ${suggestion.tables[0].tableNumber} + Table ${suggestion.tables[1].tableNumber} (${suggestion.tables[0].capacity + suggestion.tables[1].capacity} seats combined)`
+                  }
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">Auto-selected below. Override if needed.</p>
+              </div>
+            </div>
+          )}
+
+          {!preselectedTable && !suggestion && effectivePartySize > 0 && (
+            <div className="rounded-lg px-4 py-3 text-sm bg-red-50 border border-red-200 text-red-700">
+              ⚠ No available tables can fit a party of {effectivePartySize}. Free up tables first.
+            </div>
+          )}
+
+          {/* Table selectors — shown when opening from queue */}
+          {!preselectedTable && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  {linkedMode ? 'Table 1 *' : 'Table *'}
+                </label>
+                <select
+                  value={selectedTableId}
+                  onChange={e => setSelectedTableId(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                >
+                  <option value="">— choose a table —</option>
+                  {availableTables.map(t => (
+                    <option key={t.id} value={t.id} disabled={t.id === secondTableId}>
+                      Table {t.tableNumber} · {t.section} · Seats {t.capacity}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Link second table toggle */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setLinkedMode(v => !v); setSecondTableId('') }}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${linkedMode ? 'bg-amber-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${linkedMode ? 'translate-x-4' : 'translate-x-1'}`} />
+                </button>
+                <span className="text-sm text-gray-700">Link a second table</span>
+                {linkedMode && combinedCapacity > 0 && (
+                  <span className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full ml-auto">
+                    {combinedCapacity} seats combined
+                  </span>
+                )}
+              </div>
+
+              {linkedMode && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Table 2 *</label>
+                  <select
+                    value={secondTableId}
+                    onChange={e => setSecondTableId(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                  >
+                    <option value="">— choose second table —</option>
+                    {availableTables.map(t => (
+                      <option key={t.id} value={t.id} disabled={t.id === selectedTableId}>
+                        Table {t.tableNumber} · {t.section} · Seats {t.capacity}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* When opened from floor plan, optionally link a second table */}
+          {preselectedTable && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => { setLinkedMode(v => !v); setSecondTableId('') }}
+                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${linkedMode ? 'bg-amber-500' : 'bg-gray-300'}`}
+                >
+                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${linkedMode ? 'translate-x-4' : 'translate-x-1'}`} />
+                </button>
+                <span className="text-sm text-gray-700">Link a second table</span>
+                {linkedMode && combinedCapacity > 0 && (
+                  <span className="text-xs text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full ml-auto">
+                    {combinedCapacity} seats combined
+                  </span>
+                )}
+              </div>
+              {linkedMode && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Second Table *</label>
+                  <select
+                    value={secondTableId}
+                    onChange={e => setSecondTableId(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-white"
+                  >
+                    <option value="">— choose second table —</option>
+                    {availableTables.map(t => (
+                      <option key={t.id} value={t.id} disabled={t.id === preselectedTable.id}>
+                        Table {t.tableNumber} · {t.section} · Seats {t.capacity}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        <div className="flex justify-end gap-3 px-6 py-4 border-t">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition"
-          >
+        <div className="flex justify-end gap-3 px-6 py-4 border-t flex-shrink-0">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition">
             Cancel
           </button>
-          <button
-            onClick={handleAssign}
-            disabled={loading}
-            className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition font-medium"
-          >
-            {loading ? 'Assigning…' : 'Confirm & Seat'}
+          <button onClick={handleAssign} disabled={loading}
+            className="px-4 py-2 text-sm rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-60 transition font-medium">
+            {loading ? 'Assigning…' : linkedMode ? '🔗 Link & Seat' : 'Confirm & Seat'}
           </button>
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 // ─── Table Card ───────────────────────────────────────────────────────────────
 
-function TableCard({ table, waitingBookings, onRefresh }) {
+function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) {
   const [showAssign, setShowAssign] = useState(false);
 
   async function markStatus(status) {
     try {
-      const updates = { status };
+      const updates = { status }
       if (status === 'available') {
-        updates.currentBookingId = null;
-        updates.seatedAt = null;
+        updates.currentBookingId = null
+        updates.seatedAt = null
+        updates.linkedTableId = null
       }
-      await updateDoc(doc(db, 'tables', table.id), updates);
-      toast.success(`Table ${table.tableNumber} marked ${status}.`);
+      await updateDoc(doc(db, 'tables', table.id), updates)
+      // If freeing a linked table, free the partner too
+      if (status === 'available' && table.linkedTableId) {
+        await updateDoc(doc(db, 'tables', table.linkedTableId), {
+          status: 'available',
+          currentBookingId: null,
+          seatedAt: null,
+          linkedTableId: null,
+        })
+        toast.success(`Tables ${table.tableNumber} & linked table freed.`)
+      } else {
+        toast.success(`Table ${table.tableNumber} marked ${status}.`)
+      }
     } catch (err) {
-      console.error(err);
-      toast.error('Update failed.');
+      console.error(err)
+      toast.error('Update failed.')
     }
   }
 
@@ -298,6 +459,7 @@ function TableCard({ table, waitingBookings, onRefresh }) {
           <span>👥 {table.capacity}</span>
           {table.assignedServer && <span>🧑‍🍳 {table.assignedServer}</span>}
           {elapsed && <span className="text-amber-600">⏱ {elapsed}</span>}
+          {table.linkedTableId && <span className="text-xs text-amber-600 font-medium">🔗 Linked</span>}
         </div>
 
         <div className="flex flex-wrap gap-2 mt-1">
@@ -339,6 +501,7 @@ function TableCard({ table, waitingBookings, onRefresh }) {
       {showAssign && (
         <AssignModal
           table={table}
+          availableTables={availableTables.filter(t => t.id !== table.id)}
           waitingBookings={waitingBookings}
           onClose={() => setShowAssign(false)}
           onAssigned={() => setShowAssign(false)}
@@ -370,6 +533,7 @@ function FloorPlanTab({ waitingBookings }) {
   }
 
   const sections = [...new Set(tables.map(t => t.section || 'Main'))].sort();
+  const availableTables = tables.filter(t => t.status === 'available');
 
   return (
     <div className="space-y-6">
@@ -384,6 +548,7 @@ function FloorPlanTab({ waitingBookings }) {
                   key={table.id}
                   table={table}
                   waitingBookings={waitingBookings}
+                  availableTables={availableTables}
                 />
               ))}
             </div>
