@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -14,11 +15,21 @@ const NAV = [
   { to: '/settings',  label: 'Settings',   icon: '⚙️',  roles: ['admin','manager'] },
 ]
 
+const AUTO_CLOSE_DELAY = 2000 // ms
+
 export default function Sidebar({ onClose }) {
   const { profile, logout } = useAuth()
   const role = profile?.role ?? ''
+  const timerRef = useRef(null)
 
   const visible = NAV.filter((n) => n.roles.includes(role))
+
+  function handleNavClick() {
+    if (!onClose) return
+    // Clear any existing timer so rapid taps don't stack
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(onClose, AUTO_CLOSE_DELAY)
+  }
 
   return (
     <aside className="w-56 bg-gray-900 h-full flex flex-col">
@@ -43,6 +54,7 @@ export default function Sidebar({ onClose }) {
             key={n.to}
             to={n.to}
             end={n.to === '/'}
+            onClick={handleNavClick}
             className={({ isActive }) =>
               `flex items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
                 isActive
