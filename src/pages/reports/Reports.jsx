@@ -38,9 +38,9 @@ export default function Reports() {
   const [customFrom, setCustomFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customTo, setCustomTo] = useState(format(new Date(), 'yyyy-MM-dd'));
 
-  const { documents: bills = [] } = useCollection('bills', 'closedAt', 'desc');
-  const { documents: orderItems = [] } = useCollection('orderItems', 'name');
-  const { documents: staff = [] } = useCollection('staff', 'name');
+  const { docs: bills = [] } = useCollection('bills', 'closedAt', 'desc');
+  const { docs: orderItems = [] } = useCollection('orderItems', 'name');
+  const { docs: staff = [] } = useCollection('staff', 'name');
 
   const dateRange = useMemo(() => {
     if (preset === 'custom') {
@@ -173,7 +173,7 @@ export default function Reports() {
             </button>
           ))}
           {preset === 'custom' && (
-            <div className="flex items-center gap-2 ml-2">
+            <div className="flex flex-wrap items-center gap-2 w-full mt-1">
               <input
                 type="date"
                 value={customFrom}

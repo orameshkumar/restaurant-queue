@@ -310,9 +310,9 @@ export default function Cashier() {
     <div className="flex flex-col h-full min-h-screen bg-gray-50">
       <PageHeader title="Cashier / Billing" subtitle="Settle bills for tables that requested payment" />
 
-      <div className="flex flex-1 gap-4 p-4 overflow-hidden">
+      <div className="flex flex-col lg:flex-row flex-1 gap-4 p-4 overflow-auto">
         {/* ── LEFT: Bill Queue ─────────────────────────────────────────── */}
-        <aside className="w-72 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+        <aside className="w-full lg:w-72 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide px-1">
             Bill Queue ({tables?.length ?? 0})
           </h2>
@@ -578,7 +578,8 @@ export default function Cashier() {
 // ─── Item table sub-component ─────────────────────────────────────────────────
 function ItemTable({ items, onVoid }) {
   return (
-    <table className="w-full text-sm">
+    <div className="overflow-x-auto">
+    <table className="w-full text-sm min-w-[420px]">
       <thead>
         <tr className="text-xs text-gray-400 uppercase">
           <th className="text-left pb-1 font-medium">Item</th>
@@ -615,6 +616,7 @@ function ItemTable({ items, onVoid }) {
         ))}
       </tbody>
     </table>
+    </div>
   );
 }
 

@@ -306,7 +306,7 @@ export default function KDS() {
           Loading orders…
         </div>
       ) : (
-        <div className="flex-1 grid grid-cols-3 gap-4 p-4 overflow-hidden">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 p-4 overflow-auto">
           <KanbanColumn
             title="New Orders 🆕"
             items={newOrders}

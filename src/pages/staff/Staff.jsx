@@ -35,7 +35,7 @@ const EMPTY_EDIT_FORM = {
 
 export default function Staff() {
   const { currentUser } = useAuth();
-  const { documents: staffList, loading } = useCollection('staff', 'name', 'asc');
+  const { docs: staffList = [], loading } = useCollection('staff', 'name', 'asc');
 
   const [showAddModal, setShowAddModal]   = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -157,7 +157,8 @@ export default function Staff() {
         <div className="text-gray-400 text-center py-16">No staff members found.</div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          <table className="w-full text-sm">
+          <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[560px]">
             <thead className="bg-gray-50 text-gray-600 uppercase text-xs tracking-wide">
               <tr>
                 <th className="text-left px-5 py-3">Name</th>
@@ -216,6 +217,7 @@ export default function Staff() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 

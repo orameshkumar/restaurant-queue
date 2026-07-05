@@ -65,7 +65,7 @@ export default function Board() {
   return (
     <div className="min-h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5 bg-gray-800 border-b border-gray-700">
+      <header className="flex items-center justify-between px-4 md:px-8 py-4 md:py-5 bg-gray-800 border-b border-gray-700">
         <div>
           <h1 className="text-2xl font-bold text-white tracking-wide">{restaurantName}</h1>
           <p className="text-sm text-indigo-400 font-medium mt-0.5 uppercase tracking-widest">
@@ -78,9 +78,9 @@ export default function Board() {
       </header>
 
       {/* Main content */}
-      <main className="flex flex-1 gap-0 overflow-hidden">
+      <main className="flex flex-col md:flex-row flex-1 gap-0 overflow-auto">
         {/* Now Serving */}
-        <section className="flex-1 flex flex-col p-8 border-r border-gray-700">
+        <section className="flex-1 flex flex-col p-6 md:p-8 border-b md:border-b-0 md:border-r border-gray-700">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-indigo-400 mb-6">
             Now Serving
           </h2>
@@ -116,7 +116,7 @@ export default function Board() {
         </section>
 
         {/* Waiting List */}
-        <section className="w-96 flex flex-col p-8 bg-gray-850">
+        <section className="w-full md:w-96 flex flex-col p-6 md:p-8 bg-gray-800/50">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-yellow-400 mb-6">
             Waiting
           </h2>
