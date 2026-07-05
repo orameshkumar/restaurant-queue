@@ -8,7 +8,7 @@ import './index.css'
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    <BrowserRouter>
+    <BrowserRouter basename="/restaurant-queue">
       <AuthProvider>
         <App />
         <Toaster position="top-right" toastOptions={{ duration: 3500 }} />

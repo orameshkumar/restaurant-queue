@@ -7,6 +7,18 @@
     <meta name="theme-color" content="#f59e0b" />
     <link rel="manifest" href="/manifest.json" />
     <title>Restaurant Queue</title>
+    <script>
+      // Restore path encoded by 404.html redirect (GitHub Pages SPA trick)
+      (function() {
+        var p = window.location.search.slice(1).split('&').filter(function(s){ return s.startsWith('p=/'); });
+        if (p.length) {
+          var path = p[0].replace('p=', '').replace(/~and~/g, '&');
+          var q = window.location.search.slice(1).split('&').filter(function(s){ return s.startsWith('q='); });
+          var query = q.length ? '?' + q[0].replace('q=', '').replace(/~and~/g, '&') : '';
+          window.history.replaceState(null, null, '/restaurant-queue' + path + query + window.location.hash);
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
