@@ -21,7 +21,7 @@ export default function Sidebar({ onClose }) {
   const visible = NAV.filter((n) => n.roles.includes(role))
 
   return (
-    <aside className="w-56 bg-gray-900 min-h-screen flex flex-col">
+    <aside className="w-56 bg-gray-900 h-full flex flex-col">
       <div className="px-4 py-5 border-b border-gray-700 flex items-start justify-between gap-2">
         <div>
           <div className="text-amber-400 font-bold text-lg leading-tight">🍽️ RestQueue</div>

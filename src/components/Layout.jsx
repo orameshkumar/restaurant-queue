@@ -5,8 +5,8 @@ export default function Layout({ children }) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="flex min-h-screen">
-      {/* Desktop sidebar — hidden on mobile */}
+    <div className="flex h-screen overflow-hidden">
+      {/* Desktop sidebar — hidden on mobile, scrollable if nav overflows */}
       <div className="hidden lg:flex flex-shrink-0">
         <Sidebar />
       </div>
@@ -21,7 +21,8 @@ export default function Layout({ children }) {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0">
+      {/* Content column */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Mobile top bar */}
         <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-gray-900 border-b border-gray-700 flex-shrink-0">
           <button
@@ -36,7 +37,8 @@ export default function Layout({ children }) {
           <span className="text-amber-400 font-bold text-lg">🍽️ RestQueue</span>
         </header>
 
-        <main className="flex-1 p-4 lg:p-6 overflow-y-auto">{children}</main>
+        {/* Only this area scrolls — sidebar stays put */}
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">{children}</main>
       </div>
     </div>
   )
