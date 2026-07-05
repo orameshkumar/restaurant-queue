@@ -8,6 +8,12 @@ export function useCollection(col, orderField = 'createdAt', orderDir = 'asc', f
   const [error, setError]     = useState(null)
 
   useEffect(() => {
+    if (!col) {
+      setDocs([])
+      setLoading(false)
+      return
+    }
+
     let q = query(collection(db, col))
     filters.forEach(([field, op, val]) => { q = query(q, where(field, op, val)) })
     if (orderField) q = query(q, orderBy(orderField, orderDir))
