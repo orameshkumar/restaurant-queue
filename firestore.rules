@@ -1,0 +1,35 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() { return request.auth != null; }
+
+    function getRole() {
+      return get(/databases/$(database)/documents/staff/$(request.auth.uid)).data.role;
+    }
+
+    function isManager() { return getRole() in ['admin', 'manager']; }
+    function isKitchen()  { return getRole() in ['admin', 'manager', 'chef', 'kitchen_manager']; }
+    function isServer()   { return getRole() in ['admin', 'manager', 'server', 'host', 'cashier']; }
+
+    // Public read: waitlist board & self-service
+    match /bookings/{id}  { allow read: if true; allow write: if isSignedIn(); }
+    match /tables/{id}    { allow read: if true; allow write: if isSignedIn(); }
+    match /restaurantSettings/{id} { allow read: if true; allow write: if isManager(); }
+
+    // Authenticated staff
+    match /orders/{id}      { allow read, write: if isSignedIn(); }
+    match /orderItems/{id}  { allow read, write: if isSignedIn(); }
+    match /bills/{id}       { allow read: if isSignedIn(); allow create: if isSignedIn(); allow update, delete: if isManager(); }
+    match /menuItems/{id}   { allow read: if true; allow write: if isSignedIn(); }
+    match /menuCategories/{id} { allow read: if true; allow write: if isManager(); }
+    match /shifts/{id}      { allow read: if isSignedIn(); allow write: if isManager(); }
+    match /auditLog/{id}    { allow read: if isManager(); allow create: if isSignedIn(); allow update, delete: if false; }
+
+    // Staff management
+    match /staff/{id} {
+      allow read: if isSignedIn();
+      allow write: if isManager();
+    }
+  }
+}
