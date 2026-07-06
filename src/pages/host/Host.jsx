@@ -478,6 +478,41 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
     }
   }
 
+  async function returnToQueue() {
+    if (!window.confirm(`Return Table ${table.tableNumber} guest to the waiting queue?`)) return
+    try {
+      // Free this table
+      await updateDoc(doc(db, 'tables', table.id), {
+        status: 'available',
+        currentBookingId: null,
+        seatedAt: null,
+        linkedTableId: null,
+      })
+      // Free linked table if any
+      if (table.linkedTableId) {
+        await updateDoc(doc(db, 'tables', table.linkedTableId), {
+          status: 'available',
+          currentBookingId: null,
+          seatedAt: null,
+          linkedTableId: null,
+        })
+      }
+      // Put booking back to waiting
+      if (table.currentBookingId) {
+        await updateDoc(doc(db, 'bookings', table.currentBookingId), {
+          status: 'waiting',
+          tableId: null,
+          tableIds: null,
+          seatedAt: null,
+        })
+      }
+      toast.success(`Table ${table.tableNumber} freed — guest returned to queue.`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Could not return guest to queue.')
+    }
+  }
+
   async function showQR() {
     let guestName = 'Guest'
     if (table.currentBookingId) {
@@ -537,6 +572,12 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
                 className="text-xs px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium"
               >
                 📱 Show QR
+              </button>
+              <button
+                onClick={returnToQueue}
+                className="text-xs px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-medium"
+              >
+                ↩ Return to Queue
               </button>
               <button
                 onClick={() => markStatus('cleaning')}
