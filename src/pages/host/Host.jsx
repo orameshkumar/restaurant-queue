@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { collection, addDoc, updateDoc, doc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import QRCode from 'react-qr-code';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -478,6 +478,17 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
     }
   }
 
+  async function showQR() {
+    let guestName = 'Guest'
+    if (table.currentBookingId) {
+      try {
+        const snap = await getDoc(doc(db, 'bookings', table.currentBookingId))
+        if (snap.exists()) guestName = snap.data().guestName ?? 'Guest'
+      } catch {}
+    }
+    setQrInfo({ tableId: table.id, tableNumber: table.tableNumber, guestName })
+  }
+
   const elapsed = table.status === 'occupied' ? timeOccupied(table.seatedAt) : null;
 
   return (
@@ -520,12 +531,20 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
             </button>
           )}
           {table.status === 'occupied' && (
-            <button
-              onClick={() => markStatus('cleaning')}
-              className="text-xs px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium"
-            >
-              Mark Cleaning
-            </button>
+            <>
+              <button
+                onClick={showQR}
+                className="text-xs px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium"
+              >
+                📱 Show QR
+              </button>
+              <button
+                onClick={() => markStatus('cleaning')}
+                className="text-xs px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium"
+              >
+                Mark Cleaning
+              </button>
+            </>
           )}
           {table.status === 'cleaning' && (
             <button
