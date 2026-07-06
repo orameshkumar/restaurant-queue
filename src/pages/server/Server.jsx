@@ -5,6 +5,7 @@ import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
 import PageHeader from '../../components/PageHeader';
+import TakeOrderModal from '../../components/TakeOrderModal';
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -511,9 +512,8 @@ export default function Server() {
 
       {/* Modals */}
       {addItemsTable && (
-        <AddItemsModal
-          tableId={addItemsTable.id}
-          tableStatus={addItemsTable.status}
+        <TakeOrderModal
+          table={addItemsTable}
           onClose={() => setAddItemsTable(null)}
         />
       )}

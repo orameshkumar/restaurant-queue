@@ -7,6 +7,7 @@ import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
 import PageHeader from '../../components/PageHeader';
+import TakeOrderModal from '../../components/TakeOrderModal';
 
 // ─── Constants ───────────────────────────────────────────────────────────────
 
@@ -449,6 +450,7 @@ function QRCodeModal({ tableId, tableNumber, guestName, onClose }) {
 
 function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) {
   const [showAssign, setShowAssign] = useState(false);
+  const [showOrder, setShowOrder] = useState(false);
   const [qrInfo, setQrInfo] = useState(null);
 
   async function markStatus(status) {
@@ -568,6 +570,12 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
           {table.status === 'occupied' && (
             <>
               <button
+                onClick={() => setShowOrder(true)}
+                className="text-xs px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-medium"
+              >
+                🍽️ Take Order
+              </button>
+              <button
                 onClick={showQR}
                 className="text-xs px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium"
               >
@@ -606,6 +614,10 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
           onClose={() => setShowAssign(false)}
           onAssigned={(info) => { setShowAssign(false); setQrInfo(info); }}
         />
+      )}
+
+      {showOrder && (
+        <TakeOrderModal table={table} onClose={() => setShowOrder(false)} />
       )}
 
       {qrInfo && (
