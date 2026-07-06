@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
-import { doc, getDoc, collection, getDocs, query, where, orderBy, addDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, collection, getDocs, query, where, addDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 
 export default function GuestOrder() {
@@ -30,9 +30,11 @@ export default function GuestOrder() {
           if (bSnap.exists()) setBooking({ id: bSnap.id, ...bSnap.data() })
         }
 
-        // Load available menu items
-        const mSnap = await getDocs(query(collection(db, 'menuItems'), where('available', '==', true), orderBy('category')))
-        setMenuItems(mSnap.docs.map(d => ({ id: d.id, ...d.data() })))
+        // Load available menu items — no orderBy to avoid composite index requirement
+        const mSnap = await getDocs(query(collection(db, 'menuItems'), where('available', '==', true)))
+        const items = mSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        items.sort((a, b) => (a.category ?? '').localeCompare(b.category ?? ''))
+        setMenuItems(items)
       } catch (err) {
         console.error(err)
         setError('Could not load menu. Please ask your server.')
