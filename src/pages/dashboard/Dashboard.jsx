@@ -28,6 +28,7 @@ const STATUS_STYLES = {
   'in-kitchen':    'bg-blue-100 text-blue-700',
   'in-preparation':'bg-amber-100 text-amber-700',
   ready:           'bg-green-100 text-green-700',
+  served:          'bg-purple-100 text-purple-700',
 }
 
 export default function Dashboard() {
@@ -42,7 +43,7 @@ export default function Dashboard() {
   const activeItems    = orderItems.filter((i) => ['placed','in-kitchen','in-preparation'].includes(i.status))
   const revenueToday   = bills.reduce((sum, b) => sum + (b.total ?? 0), 0)
 
-  const kitchenStatuses = ['placed', 'in-kitchen', 'in-preparation', 'ready']
+  const kitchenStatuses = ['placed', 'in-kitchen', 'in-preparation', 'ready', 'served']
   const kitchenCounts   = Object.fromEntries(
     kitchenStatuses.map((s) => [s, orderItems.filter((i) => i.status === s).length])
   )
