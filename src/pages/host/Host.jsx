@@ -448,7 +448,7 @@ function QRCodeModal({ tableId, tableNumber, guestName, onClose }) {
 
 // ─── Table Card ───────────────────────────────────────────────────────────────
 
-function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) {
+function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems = false }) {
   const [showAssign, setShowAssign] = useState(false);
   const [showOrder, setShowOrder] = useState(false);
   const [qrInfo, setQrInfo] = useState(null);
@@ -548,6 +548,11 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
           {table.assignedServer && <span>🧑‍🍳 {table.assignedServer}</span>}
           {elapsed && <span className="text-amber-600">⏱ {elapsed}</span>}
           {table.linkedTableId && <span className="text-xs text-amber-600 font-medium">🔗 Linked</span>}
+          {hasReadyItems && (
+            <span className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full animate-pulse">
+              🔔 Ready
+            </span>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2 mt-1">
@@ -567,13 +572,13 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
               Seat Guest
             </button>
           )}
-          {table.status === 'occupied' && (
+          {['occupied', 'ordering', 'eating', 'bill_requested'].includes(table.status) && (
             <>
               <button
                 onClick={() => setShowOrder(true)}
-                className="text-xs px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-medium"
+                className={`text-xs px-3 py-1.5 rounded-lg text-white transition font-medium ${hasReadyItems ? 'bg-green-600 hover:bg-green-700 animate-pulse' : 'bg-orange-500 hover:bg-orange-600'}`}
               >
-                🍽️ Take Order
+                {hasReadyItems ? '🔔 Orders Ready' : '🍽️ Take Order'}
               </button>
               <button
                 onClick={showQR}
@@ -583,7 +588,7 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
               </button>
               <button
                 onClick={returnToQueue}
-                className="text-xs px-3 py-1.5 bg-orange-500 text-white rounded-lg hover:bg-orange-600 transition font-medium"
+                className="text-xs px-3 py-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition font-medium"
               >
                 ↩ Return to Queue
               </button>
@@ -631,6 +636,8 @@ function TableCard({ table, waitingBookings, availableTables = [], onRefresh }) 
 
 function FloorPlanTab({ waitingBookings }) {
   const { docs: tables = [], loading } = useCollection('tables', 'tableNumber');
+  const { docs: readyItems = [] } = useCollection('orderItems', null, null, [['status', '==', 'ready']]);
+  const readyTableIds = useMemo(() => new Set(readyItems.map(i => i.tableId)), [readyItems]);
 
   if (loading) {
     return (
@@ -665,6 +672,7 @@ function FloorPlanTab({ waitingBookings }) {
                   table={table}
                   waitingBookings={waitingBookings}
                   availableTables={availableTables}
+                  hasReadyItems={readyTableIds.has(table.id)}
                 />
               ))}
             </div>

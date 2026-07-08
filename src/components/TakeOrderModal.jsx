@@ -34,6 +34,8 @@ export default function TakeOrderModal({ table, onClose }) {
   const [firing, setFiring] = useState(false)
   const [removingItem, setRemovingItem] = useState(null)
   const [menuSearch, setMenuSearch] = useState('')
+  const [reviewMode, setReviewMode] = useState(false)  // cart review step before fire
+  const [firedBanner, setFiredBanner] = useState(false) // success banner after fire
 
   const grouped = useMemo(() => {
     const q = menuSearch.trim().toLowerCase()
@@ -154,9 +156,12 @@ export default function TakeOrderModal({ table, onClose }) {
         await updateDoc(doc(db, 'tables', table.id), { status: 'ordering' })
       }
 
-      toast.success('New items fired to kitchen!')
       setCart({})
       setNote('')
+      setInstructions({})
+      setReviewMode(false)
+      setFiredBanner(true)
+      setTimeout(() => setFiredBanner(false), 4000)
     } catch (err) {
       console.error(err)
       toast.error('Failed to fire order.')
@@ -314,20 +319,52 @@ export default function TakeOrderModal({ table, onClose }) {
           </div>
         </div>
 
-        {/* Note + footer */}
-        {newCartCount > 0 && (
-          <div className="px-5 py-3 bg-gray-50 border-t flex-shrink-0">
-            <input type="text" placeholder="Order note (optional)"
-              value={note} onChange={e => setNote(e.target.value)}
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+        {/* Fired success banner */}
+        {firedBanner && (
+          <div className="mx-5 mb-2 mt-1 flex items-center gap-2 bg-green-50 border border-green-200 text-green-800 text-sm font-medium px-4 py-2.5 rounded-xl flex-shrink-0">
+            <span className="text-lg">✅</span> Order fired to kitchen! Add more items or close.
           </div>
         )}
 
+        {/* Review overlay — shown before confirming fire */}
+        {reviewMode && (
+          <div className="border-t flex-shrink-0 bg-white">
+            <div className="px-5 pt-4 pb-2 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-gray-800">Review Order Before Firing</h3>
+              <button onClick={() => setReviewMode(false)} className="text-xs text-gray-500 hover:text-gray-700 underline">← Edit</button>
+            </div>
+            <div className="px-5 pb-3 space-y-2 max-h-48 overflow-y-auto">
+              {newEntries.map(({ item, qty }) => (
+                <div key={item.id} className="flex items-center justify-between text-sm">
+                  <span className="text-gray-800 flex-1">{item.name}</span>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button onClick={() => removeFromCart(item.id)}
+                      className="w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 font-bold text-base flex items-center justify-center">−</button>
+                    <span className="w-5 text-center font-semibold">{qty}</span>
+                    <button onClick={() => addToCart(item)}
+                      className="w-6 h-6 rounded-full bg-orange-100 hover:bg-orange-200 font-bold text-base flex items-center justify-center">+</button>
+                    <span className="text-gray-500 text-xs w-16 text-right">₹{((item.price ?? 0) * qty).toLocaleString('en-IN')}</span>
+                    <button onClick={() => { removeFromCart(item.id); if (newCartCount <= 1) setReviewMode(false) }}
+                      className="w-6 h-6 rounded-full text-red-400 hover:bg-red-50 flex items-center justify-center text-xs">✕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {note && <p className="px-5 pb-2 text-xs text-gray-400 italic">Note: "{note}"</p>}
+            <div className="px-5 pb-3">
+              <input type="text" placeholder="Order note (optional)"
+                value={note} onChange={e => setNote(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400" />
+            </div>
+          </div>
+        )}
+
+        {/* Footer */}
         <div className="px-5 py-4 border-t flex items-center justify-between flex-shrink-0">
           <div>
             {newCartCount > 0 && (
               <>
-                <p className="text-xs text-gray-500">{newCartCount} new item{newCartCount !== 1 ? 's' : ''} to fire</p>
+                <p className="text-xs text-gray-500">{newCartCount} item{newCartCount !== 1 ? 's' : ''} in cart</p>
                 <p className="text-base font-bold text-gray-800">₹{newTotal.toLocaleString('en-IN')}</p>
               </>
             )}
@@ -337,10 +374,17 @@ export default function TakeOrderModal({ table, onClose }) {
               className="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 text-sm font-medium">
               Close
             </button>
-            <button onClick={handleFire} disabled={firing || !newCartCount}
-              className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold">
-              {firing ? 'Firing…' : '🔥 Fire to Kitchen'}
-            </button>
+            {!reviewMode ? (
+              <button onClick={() => setReviewMode(true)} disabled={!newCartCount}
+                className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white text-sm font-semibold">
+                Review & Fire →
+              </button>
+            ) : (
+              <button onClick={handleFire} disabled={firing || !newCartCount}
+                className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-700 disabled:opacity-50 text-white text-sm font-semibold">
+                {firing ? 'Firing…' : '🔥 Confirm & Fire'}
+              </button>
+            )}
           </div>
         </div>
       </div>
