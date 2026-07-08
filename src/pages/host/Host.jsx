@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
+import { useEwt } from '../../hooks/useEwt';
 import PageHeader from '../../components/PageHeader';
 import TakeOrderModal from '../../components/TakeOrderModal';
 
@@ -769,6 +770,7 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
 
 function QueueTab() {
   const { docs: allBookings = [], loading } = useCollection('bookings', 'queueSequence', 'asc');
+  const { calcEwt } = useEwt();
 
   const [showReservationForm, setShowReservationForm] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
@@ -1143,7 +1145,7 @@ function QueueTab() {
               <tbody className="divide-y divide-gray-100">
                 {todayBookings.map((booking, idx) => {
                   const waitingPosition = waitingBookings.findIndex(b => b.id === booking.id);
-                  const ewt = waitingPosition >= 0 ? `~${(waitingPosition + 1) * 20} min` : '—';
+                  const ewt = waitingPosition >= 0 ? (calcEwt(booking.tablePreference ?? 'Any', waitingPosition) > 0 ? `~${calcEwt(booking.tablePreference ?? 'Any', waitingPosition)} min` : 'Ready soon') : '—';
 
                   return (
                   <React.Fragment key={booking.id}>

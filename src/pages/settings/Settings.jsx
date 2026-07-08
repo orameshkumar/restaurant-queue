@@ -20,10 +20,13 @@ const DEFAULT_SETTINGS = {
   selfServiceUrl: '',
   upiId: '',
   merchantId: '',
+  sectionEwt: { Indoor: 30, Outdoor: 25, 'Bar & Lounge': 20, 'Private Dining': 45 },
   operatingHours: Object.fromEntries(
     DAYS.map((d) => [d, { openTime: '09:00', closeTime: '22:00', closed: false }])
   ),
 };
+
+const EWT_SECTIONS = ['Indoor', 'Outdoor', 'Bar & Lounge', 'Private Dining'];
 
 export default function Settings() {
   const { user } = useAuth();
@@ -271,6 +274,38 @@ export default function Settings() {
                 min={1}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
               />
+            </div>
+          </div>
+        </section>
+
+        {/* Queue / EWT */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Queue / EWT</h2>
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-700 mb-1">Expected Wait Time per Section (minutes)</p>
+            <p className="text-xs text-gray-400 mb-3">Used to calculate estimated wait time for queued customers based on live table availability.</p>
+            <div className="space-y-3">
+              {EWT_SECTIONS.map((section) => (
+                <div key={section} className="flex items-center justify-between gap-4">
+                  <label className="text-sm text-gray-700 w-40">{section}</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={180}
+                    step={5}
+                    value={form.sectionEwt?.[section] ?? 30}
+                    onChange={(e) =>
+                      setForm((prev) => ({
+                        ...prev,
+                        sectionEwt: { ...prev.sectionEwt, [section]: Number(e.target.value) },
+                      }))
+                    }
+                    className="w-28 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  />
+                </div>
+              ))}
             </div>
           </div>
         </section>

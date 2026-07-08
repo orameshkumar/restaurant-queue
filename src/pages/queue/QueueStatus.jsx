@@ -2,12 +2,13 @@ import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { useEwt } from '../../hooks/useEwt'
 
 const TODAY = new Date().toISOString().split('T')[0]
-const EWT_PER_PARTY = 20
 
 export default function QueueStatus() {
   const { bookingId } = useParams()
+  const { calcEwt } = useEwt()
   const [booking, setBooking]     = useState(null)
   const [position, setPosition]   = useState(null)
   const [loading, setLoading]     = useState(true)
@@ -137,7 +138,7 @@ export default function QueueStatus() {
     </div>
   )
 
-  const ewt = position != null ? Math.max(0, (position - 1) * EWT_PER_PARTY) : null
+  const ewt = position != null ? calcEwt(booking?.tablePreference ?? 'Any', position - 1) : null
 
   // ── Live waiting status ──────────────────────────────────────────────────
   return (

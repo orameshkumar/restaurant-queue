@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
 import QRCode from 'react-qr-code'
 import { db } from '../../firebase/config'
+import { useEwt } from '../../hooks/useEwt'
 
 const TODAY = new Date().toISOString().split('T')[0]
-const EWT_PER_PARTY = 20
 
 function maskName(name = '') {
   const parts = name.trim().split(' ')
@@ -27,6 +27,7 @@ export default function QueueBoard() {
   const [waiting, setWaiting]   = useState([])
   const [seated, setSeated]     = useState([])   // recently seated (today)
   const [restaurantName, setRestaurantName] = useState('Restaurant')
+  const { calcEwt } = useEwt()
 
   const joinUrl = `${window.location.origin}${import.meta.env.BASE_URL}queue/join`
 
@@ -148,7 +149,7 @@ export default function QueueBoard() {
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-gray-500">Est. wait</p>
                     <p className={`text-xl font-bold ${idx === 0 ? 'text-amber-400' : 'text-gray-300'}`}>
-                      {idx === 0 ? 'Ready!' : `~${idx * EWT_PER_PARTY}m`}
+                      {idx === 0 ? 'Ready!' : calcEwt(b.tablePreference ?? 'Any', idx) > 0 ? `~${calcEwt(b.tablePreference ?? 'Any', idx)}m` : 'Soon'}
                     </p>
                   </div>
                 </div>
