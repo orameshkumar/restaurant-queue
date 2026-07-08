@@ -1203,7 +1203,7 @@ export default function Host() {
   const { user } = useAuth();
   const location = useLocation();
   const initialFilter = location.state?.filterStatus ?? 'all';
-  const [activeTab, setActiveTab] = useState('floor');
+  const [activeTab, setActiveTab] = useState(location.state?.activeTab ?? 'floor');
 
   const { docs: allBookings = [] } = useCollection('bookings', null, null);
   const { docs: rawDraftOrders2 = [] } = useCollection('orders', null, null, [['status', '==', 'draft']]);
