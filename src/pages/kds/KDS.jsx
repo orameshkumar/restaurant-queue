@@ -6,7 +6,15 @@ import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
 
-const STATIONS = ['All', 'Grill', 'Cold Kitchen', 'Pastry', 'Bar'];
+const STATIONS = ['All', 'Main Kitchen', 'Grill', 'Cold Kitchen', 'Pastry', 'Bar'];
+
+const STATION_COLORS = {
+  'Main Kitchen':  'bg-orange-100 text-orange-700',
+  'Grill':         'bg-red-100 text-red-700',
+  'Cold Kitchen':  'bg-blue-100 text-blue-700',
+  'Pastry':        'bg-pink-100 text-pink-700',
+  'Bar':           'bg-purple-100 text-purple-700',
+};
 
 // Map dashboard status → kanban column index
 const STATUS_TO_COLUMN = {
@@ -79,7 +87,14 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
           ×{item.qty ?? 1}
         </span>
       </div>
-      <p className="text-base font-semibold text-gray-800 leading-tight">{item.itemName || item.name || 'Unknown Item'}</p>
+      <div className="flex items-center gap-2">
+        <p className="text-base font-semibold text-gray-800 leading-tight flex-1">{item.itemName || item.name || 'Unknown Item'}</p>
+        {item.station && (
+          <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${STATION_COLORS[item.station] ?? 'bg-gray-100 text-gray-600'}`}>
+            {item.station}
+          </span>
+        )}
+      </div>
       {item.modifiers?.length > 0 && (
         <ul className="flex flex-wrap gap-1">
           {item.modifiers.map((mod, i) => (

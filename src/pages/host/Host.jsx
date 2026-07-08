@@ -895,6 +895,7 @@ function QueueTab() {
             menuItemId:          item.menuItemId ?? null,
             name:                item.name,
             category:            item.category ?? 'Uncategorized',
+            station:             item.station ?? 'Main Kitchen',
             price:               item.price ?? 0,
             qty:                 item.qty ?? 1,
             modifiers:           [],
