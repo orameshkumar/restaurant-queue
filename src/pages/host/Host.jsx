@@ -855,7 +855,8 @@ function QueueTab() {
   }
 
   const { docs: tables = [] } = useCollection('tables', 'tableNumber');
-  const { docs: draftOrders = [] } = useCollection('orders', 'createdAt', 'asc', [['status', '==', 'draft']]);
+  const { docs: rawDraftOrders1 = [] } = useCollection('orders', null, null, [['status', '==', 'draft']]);
+  const draftOrders = rawDraftOrders1.slice().sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
 
   async function confirmOrder(orderId) {
     try {
@@ -1187,8 +1188,9 @@ export default function Host() {
   const initialFilter = location.state?.filterStatus ?? 'all';
   const [activeTab, setActiveTab] = useState('floor');
 
-  const { docs: allBookings = [] } = useCollection('bookings', 'queueSequence', 'asc');
-  const { docs: draftOrders = [] } = useCollection('orders', 'createdAt', 'asc', [['status', '==', 'draft']]);
+  const { docs: allBookings = [] } = useCollection('bookings', null, null);
+  const { docs: rawDraftOrders2 = [] } = useCollection('orders', null, null, [['status', '==', 'draft']]);
+  const draftOrders = rawDraftOrders2.slice().sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
 
   const waitingBookings = useMemo(() => {
     if (!allBookings) return [];
