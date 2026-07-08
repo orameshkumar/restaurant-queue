@@ -32,17 +32,22 @@ export default function TakeOrderModal({ table, onClose }) {
   const [instructions, setInstructions] = useState({})
   const [note, setNote] = useState('')
   const [firing, setFiring] = useState(false)
-  const [removingItem, setRemovingItem] = useState(null) // { orderId, itemIdx }
+  const [removingItem, setRemovingItem] = useState(null)
+  const [menuSearch, setMenuSearch] = useState('')
 
   const grouped = useMemo(() => {
+    const q = menuSearch.trim().toLowerCase()
+    const filtered = q
+      ? menuItems.filter(i => i.name?.toLowerCase().includes(q) || i.category?.toLowerCase().includes(q))
+      : menuItems
     const map = {}
-    menuItems.forEach(item => {
+    filtered.forEach(item => {
       const cat = item.category ?? 'Uncategorized'
       if (!map[cat]) map[cat] = []
       map[cat].push(item)
     })
     return map
-  }, [menuItems])
+  }, [menuItems, menuSearch])
 
   function addToCart(item) {
     setCart(prev => ({ ...prev, [item.id]: { item, qty: (prev[item.id]?.qty ?? 0) + 1 } }))
@@ -237,9 +242,28 @@ export default function TakeOrderModal({ table, onClose }) {
 
           {/* ── Add new items ── */}
           <div>
-            <h3 className="text-sm font-bold text-gray-700 mb-3">
-              {existingOrders.length > 0 ? 'Add More Items' : 'Menu'}
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-bold text-gray-700">
+                {existingOrders.length > 0 ? 'Add More Items' : 'Menu'}
+              </h3>
+              <span className="text-xs text-gray-400">{menuItems.length} items</span>
+            </div>
+            <div className="relative mb-4">
+              <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 pointer-events-none">🔍</span>
+              <input
+                type="text"
+                placeholder="Search menu…"
+                value={menuSearch}
+                onChange={e => setMenuSearch(e.target.value)}
+                className="w-full pl-9 pr-8 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 bg-gray-50"
+              />
+              {menuSearch && (
+                <button
+                  onClick={() => setMenuSearch('')}
+                  className="absolute inset-y-0 right-2 flex items-center text-gray-400 hover:text-gray-600 px-1"
+                >✕</button>
+              )}
+            </div>
             {Object.entries(grouped).map(([category, items]) => (
               <div key={category} className="mb-5">
                 <h4 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2 pb-1 border-b border-gray-100">{category}</h4>
@@ -283,6 +307,9 @@ export default function TakeOrderModal({ table, onClose }) {
             ))}
             {menuItems.length === 0 && (
               <p className="text-center text-gray-400 py-10">No menu items available.</p>
+            )}
+            {menuItems.length > 0 && Object.keys(grouped).length === 0 && (
+              <p className="text-center text-gray-400 py-8">No items match "<span className="italic">{menuSearch}</span>".</p>
             )}
           </div>
         </div>
