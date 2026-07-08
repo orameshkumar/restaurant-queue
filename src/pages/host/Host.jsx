@@ -802,10 +802,36 @@ function QueueTab() {
 
   async function confirmOrder(orderId) {
     try {
+      const orderSnap = await getDoc(doc(db, 'orders', orderId));
+      if (!orderSnap.exists()) { toast.error('Order not found.'); return; }
+      const order = { id: orderSnap.id, ...orderSnap.data() };
+
+      // Create orderItems so KDS picks them up
+      await Promise.all(
+        (order.items ?? []).map(item =>
+          addDoc(collection(db, 'orderItems'), {
+            tableId:             order.tableId,
+            orderId:             orderId,
+            menuItemId:          item.menuItemId ?? null,
+            name:                item.name,
+            category:            item.category ?? 'Uncategorized',
+            price:               item.price ?? 0,
+            qty:                 item.qty ?? 1,
+            modifiers:           [],
+            specialInstructions: item.specialInstructions ?? '',
+            status:              'placed',
+            firedAt:             serverTimestamp(),
+            servedAt:            null,
+            claimedByChefId:     null,
+          })
+        )
+      );
+
       await updateDoc(doc(db, 'orders', orderId), {
         status: 'new',
         confirmedAt: serverTimestamp(),
       });
+
       toast.success('Order confirmed — sent to kitchen.');
     } catch (err) {
       console.error(err);

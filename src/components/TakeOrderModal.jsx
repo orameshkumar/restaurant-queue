@@ -173,6 +173,26 @@ export default function TakeOrderModal({ table, onClose }) {
   // Confirm a draft order (guest-placed, not yet sent to kitchen)
   async function confirmDraft(order) {
     try {
+      // Create orderItems so KDS kanban picks them up
+      await Promise.all(
+        (order.items ?? []).map(item =>
+          addDoc(collection(db, 'orderItems'), {
+            tableId:             order.tableId,
+            orderId:             order.id,
+            menuItemId:          item.menuItemId ?? null,
+            name:                item.name,
+            category:            item.category ?? 'Uncategorized',
+            price:               item.price ?? 0,
+            qty:                 item.qty ?? 1,
+            modifiers:           [],
+            specialInstructions: item.specialInstructions ?? '',
+            status:              'placed',
+            firedAt:             serverTimestamp(),
+            servedAt:            null,
+            claimedByChefId:     null,
+          })
+        )
+      )
       await updateDoc(doc(db, 'orders', order.id), { status: 'new', confirmedAt: serverTimestamp() })
       toast.success('Order confirmed — sent to kitchen.')
     } catch (err) {
