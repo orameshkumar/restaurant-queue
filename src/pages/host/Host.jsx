@@ -586,6 +586,14 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
               >
                 📱 Show QR
               </button>
+              {table.status !== 'bill_requested' && (
+                <button
+                  onClick={() => markStatus('bill_requested')}
+                  className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium"
+                >
+                  💳 Send to Billing
+                </button>
+              )}
               <button
                 onClick={returnToQueue}
                 className="text-xs px-3 py-1.5 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition font-medium"

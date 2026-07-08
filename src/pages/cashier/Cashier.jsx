@@ -156,9 +156,9 @@ export default function Cashier() {
   const { user } = useAuth();
 
   // ── data ──────────────────────────────────────────────────────────────────
-  const { docs: tables = [] } = useCollection('tables', 'tableNumber', 'asc', [
-    ['status', '==', 'bill_requested'],
-  ]);
+  // Show all active tables — bill_requested highlighted, others accessible too
+  const { docs: allTables = [] } = useCollection('tables', 'tableNumber', 'asc');
+  const tables = allTables.filter(t => ['occupied','ordering','eating','bill_requested'].includes(t.status));
 
   const [selectedTable, setSelectedTable] = useState(null);
 
@@ -383,8 +383,15 @@ export default function Cashier() {
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-lg font-bold text-gray-800">Table #{t.tableNumber}</span>
-                <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium">
-                  Bill Req.
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  t.status === 'bill_requested' ? 'bg-purple-100 text-purple-700' :
+                  t.status === 'ordering'       ? 'bg-orange-100 text-orange-700' :
+                  t.status === 'eating'         ? 'bg-green-100 text-green-700'   :
+                                                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {t.status === 'bill_requested' ? '💳 Bill Req.' :
+                   t.status === 'ordering'       ? '🍽️ Ordering' :
+                   t.status === 'eating'         ? '🍴 Eating'   : '🪑 Occupied'}
                 </span>
               </div>
               <p className="text-xs text-gray-500">{t.section ?? 'Main Hall'}</p>

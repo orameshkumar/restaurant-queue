@@ -32,7 +32,7 @@ export default function Dashboard() {
   const { docs: orderItems= []} = useCollection('orderItems', 'firedAt')
   const { docs: bills    = [] } = useCollection('bills',      'closedAt', 'desc', [['closedDate', '==', TODAY]])
 
-  const tablesOccupied = tables.filter((t) => t.status === 'occupied').length
+  const tablesOccupied = tables.filter((t) => ['occupied','ordering','eating','bill_requested'].includes(t.status)).length
   const waitingQueue   = bookings.filter((b) => b.status === 'waiting')
   const activeItems    = orderItems.filter((i) => ['placed','in-kitchen','in-preparation'].includes(i.status))
   const revenueToday   = bills.reduce((sum, b) => sum + (b.total ?? 0), 0)
