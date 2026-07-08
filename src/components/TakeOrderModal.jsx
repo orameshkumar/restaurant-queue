@@ -16,14 +16,12 @@ export default function TakeOrderModal({ table, onClose }) {
   const [existingOrders, setExistingOrders] = useState([])
   useEffect(() => {
     if (!table?.id) return
-    const q = query(
-      collection(db, 'orders'),
-      where('tableId', '==', table.id),
-      where('status', 'in', ['draft', 'new', 'preparing']),
-    )
+    const q = query(collection(db, 'orders'), where('tableId', '==', table.id))
     return onSnapshot(q, snap => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      docs.sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
+      const docs = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => ['draft', 'new', 'preparing'].includes(d.status))
+        .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
       setExistingOrders(docs)
     })
   }, [table?.id])

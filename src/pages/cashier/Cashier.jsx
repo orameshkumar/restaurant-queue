@@ -167,14 +167,13 @@ export default function Cashier() {
 
   useEffect(() => {
     if (!selectedTable) { setOrders([]); return; }
-    const q = query(
-      collection(db, 'orders'),
-      where('tableId', '==', selectedTable.id),
-      where('status', 'not-in', ['draft', 'rejected', 'billed'])
-    );
+    // Filter by tableId only — avoid not-in+equality composite index requirement
+    const q = query(collection(db, 'orders'), where('tableId', '==', selectedTable.id));
     const unsub = onSnapshot(q, snap => {
-      const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      docs.sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+      const docs = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => !['draft', 'rejected', 'billed'].includes(d.status))
+        .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
       setOrders(docs);
     });
     return unsub;
