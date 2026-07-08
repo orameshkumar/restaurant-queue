@@ -1,4 +1,5 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import './bill-print.css';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import QRCode from 'react-qr-code';
 import toast from 'react-hot-toast';
@@ -202,6 +203,9 @@ export default function Cashier() {
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [showSplitModal, setShowSplitModal] = useState(false);
   const [settling, setSettling] = useState(false);
+  const [printCopies, setPrintCopies] = useState(1);
+  const printRef = useRef(null);
+  const [lastBill, setLastBill] = useState(null); // snapshot for printing after settle
 
   // ── derived ───────────────────────────────────────────────────────────────
   // Flatten all items across rounds, merging same menuItemId
@@ -343,6 +347,17 @@ export default function Cashier() {
         });
       }
 
+      // Capture bill snapshot for printing before clearing state
+      setLastBill({
+        billId: billRef.id,
+        tableNumber: selectedTable.tableNumber,
+        items: consolidatedItems,
+        subtotal, taxAmount, tax: TAX_RATE, discountAmount,
+        discount, tipAmount, tipOption, total, paymentMode,
+        restaurantName: merchantName,
+        closedAt: new Date(),
+      });
+
       toast.success(`Bill settled — ${fmt(total)}`, { duration: 5000 });
       setSelectedTable(null);
       setDiscount(null);
@@ -357,6 +372,18 @@ export default function Cashier() {
       setSettling(false);
     }
   }
+
+  // Auto-print when lastBill is set
+  useEffect(() => {
+    if (!lastBill) return;
+    // Small delay to let the hidden print DOM render
+    const t = setTimeout(() => window.print(), 300);
+    return () => clearTimeout(t);
+  }, [lastBill]);
+
+  const handleReprintBill = useCallback(() => {
+    if (lastBill) window.print();
+  }, [lastBill]);
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -624,6 +651,20 @@ export default function Cashier() {
                   ✂️ Split Bill
                 </button>
 
+                {/* Print copies selector */}
+                <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-1.5">
+                  <span className="text-xs text-gray-500 font-medium">🖨 Copies</span>
+                  {[1, 2, 3].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setPrintCopies(n)}
+                      className={`w-7 h-7 rounded-md text-xs font-bold transition-colors ${printCopies === n ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+
                 <button
                   disabled={orders.length === 0 || settling}
                   onClick={handleSettleBill}
@@ -634,14 +675,69 @@ export default function Cashier() {
                       <span className="animate-spin">⏳</span> Processing…
                     </>
                   ) : (
-                    <>✅ Settle Bill · {fmt(total)}</>
+                    <>✅ Settle &amp; Print · {fmt(total)}</>
                   )}
                 </button>
               </div>
+
+              {/* Reprint last bill */}
+              {lastBill && (
+                <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
+                  <p className="text-xs text-gray-500">Last bill: Table {lastBill.tableNumber} · {fmt(lastBill.total)}</p>
+                  <button
+                    onClick={handleReprintBill}
+                    className="text-xs px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition font-medium"
+                  >
+                    🖨 Reprint
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </main>
       </div>
+
+      {/* ── Hidden print layout (screen-hidden, print-visible) ─────────── */}
+      {lastBill && (
+        <div ref={printRef} className="print-bill-root">
+          {Array.from({ length: printCopies }).map((_, copyIdx) => (
+            <div key={copyIdx} className="print-bill-copy">
+              <div className="print-bill-header">
+                <p className="print-bill-restaurant">{lastBill.restaurantName}</p>
+                <p className="print-bill-sub">Tax Invoice</p>
+                <p className="print-bill-sub">Table {lastBill.tableNumber} &nbsp;·&nbsp; Bill #{lastBill.billId.slice(-6).toUpperCase()}</p>
+                <p className="print-bill-sub">{lastBill.closedAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                {printCopies > 1 && <p className="print-bill-copy-label">{copyIdx === 0 ? 'Customer Copy' : copyIdx === 1 ? 'Restaurant Copy' : `Copy ${copyIdx + 1}`}</p>}
+              </div>
+              <table className="print-bill-table">
+                <thead>
+                  <tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amt</th></tr>
+                </thead>
+                <tbody>
+                  {lastBill.items.map((item, i) => (
+                    <tr key={i}>
+                      <td>{item.name}</td>
+                      <td className="center">{item.qty}</td>
+                      <td className="right">{(item.price ?? 0).toFixed(2)}</td>
+                      <td className="right">{((item.price ?? 0) * item.qty).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="print-bill-totals">
+                <div className="print-bill-row"><span>Subtotal</span><span>{lastBill.subtotal.toFixed(2)}</span></div>
+                {lastBill.discount && <div className="print-bill-row discount"><span>Discount</span><span>− {lastBill.discountAmount.toFixed(2)}</span></div>}
+                <div className="print-bill-row"><span>GST ({lastBill.tax}%)</span><span>{lastBill.taxAmount.toFixed(2)}</span></div>
+                {lastBill.tipAmount > 0 && <div className="print-bill-row"><span>Tip</span><span>{lastBill.tipAmount.toFixed(2)}</span></div>}
+                <div className="print-bill-row total"><span>TOTAL</span><span>₹ {lastBill.total.toFixed(2)}</span></div>
+                <div className="print-bill-row"><span>Payment</span><span style={{ textTransform: 'capitalize' }}>{lastBill.paymentMode}</span></div>
+              </div>
+              <p className="print-bill-footer">Thank you for dining with us!</p>
+              {copyIdx < printCopies - 1 && <div className="print-page-break" />}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* ── Modals ─────────────────────────────────────────────────────── */}
       {voidTarget && (
