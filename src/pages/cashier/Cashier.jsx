@@ -161,6 +161,7 @@ export default function Cashier() {
   const { document: restaurantSettings } = useDocument('restaurantSettings', 'main');
   const merchantVpa  = restaurantSettings?.upiId ?? '';
   const merchantName = restaurantSettings?.restaurantName ?? 'Restaurant';
+  const merchantId   = restaurantSettings?.merchantId ?? '';
 
   // ── data ──────────────────────────────────────────────────────────────────
   // Show all active tables — bill_requested highlighted, others accessible too
@@ -589,6 +590,9 @@ export default function Cashier() {
                   <QRCode value={upiUrl} size={160} />
                   <p className="text-xs text-gray-500">Scan to pay {fmt(total)} via UPI</p>
                   <p className="text-xs text-indigo-600 font-medium">{merchantVpa}</p>
+                  {merchantId && (
+                    <p className="text-xs text-gray-400">MID: {merchantId}</p>
+                  )}
                 </div>
               )}
               {paymentMode === 'upi' && !merchantVpa && (

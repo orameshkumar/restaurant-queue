@@ -13,19 +13,36 @@ import TakeOrderModal from '../../components/TakeOrderModal';
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const STATUS_STYLES = {
-  available: 'bg-green-100 text-green-800 border-green-300',
-  occupied:  'bg-amber-100 text-amber-800 border-amber-300',
-  reserved:  'bg-blue-100 text-blue-800 border-blue-300',
-  cleaning:  'bg-gray-100 text-gray-700 border-gray-300',
-  blocked:   'bg-red-100 text-red-800 border-red-300',
+  available:      'bg-green-100 text-green-800 border-green-300',
+  occupied:       'bg-amber-100 text-amber-800 border-amber-300',
+  ordering:       'bg-orange-100 text-orange-800 border-orange-300',
+  eating:         'bg-teal-100 text-teal-800 border-teal-300',
+  bill_requested: 'bg-purple-100 text-purple-800 border-purple-300',
+  reserved:       'bg-blue-100 text-blue-800 border-blue-300',
+  cleaning:       'bg-gray-100 text-gray-700 border-gray-300',
+  blocked:        'bg-red-100 text-red-800 border-red-300',
+};
+
+const STATUS_LABELS = {
+  available:      'Available',
+  occupied:       'Occupied',
+  ordering:       'Ordering',
+  eating:         'Eating',
+  bill_requested: 'Bill Req.',
+  reserved:       'Reserved',
+  cleaning:       'Cleaning',
+  blocked:        'Blocked',
 };
 
 const STATUS_CARD_BORDER = {
-  available: 'border-green-300',
-  occupied:  'border-amber-300',
-  reserved:  'border-blue-300',
-  cleaning:  'border-gray-300',
-  blocked:   'border-red-300',
+  available:      'border-green-300',
+  occupied:       'border-amber-300',
+  ordering:       'border-orange-300',
+  eating:         'border-teal-300',
+  bill_requested: 'border-purple-400',
+  reserved:       'border-blue-300',
+  cleaning:       'border-gray-300',
+  blocked:        'border-red-300',
 };
 
 const TABLE_PREFS = ['Any', 'Window', 'Booth', 'Outdoor'];
@@ -539,8 +556,8 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
               <span className="ml-2 text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">{table.section}</span>
             )}
           </div>
-          <span className={`text-xs font-semibold px-2 py-1 rounded-full border capitalize ${STATUS_STYLES[table.status] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
-            {table.status}
+          <span className={`text-xs font-semibold px-2 py-1 rounded-full border whitespace-nowrap ${STATUS_STYLES[table.status] || 'bg-gray-100 text-gray-600 border-gray-200'}`}>
+            {STATUS_LABELS[table.status] ?? table.status}
           </span>
         </div>
 
