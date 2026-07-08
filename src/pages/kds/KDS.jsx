@@ -221,6 +221,7 @@ function KanbanColumn({ title, items, tables, staffMap, currentProfile, tick }) 
 export default function KDS() {
   const { profile } = useAuth();
   const [selectedStation, setSelectedStation] = useState('All');
+  const [selectedTables, setSelectedTables] = useState(new Set()); // empty = all tables
   const [tick, setTick] = useState(0);
 
   // Live collections — no orderBy combined with 'in' filter (needs composite index);
@@ -247,11 +248,35 @@ export default function KDS() {
     return () => clearInterval(interval);
   }, []);
 
-  // Station filter
+  // Unique table numbers present in active orders — for filter pills
+  const activeTableNums = useMemo(() => {
+    const nums = [...new Set(orderItems.map(i => i.tableId))]
+      .map(tid => tables.find(t => t.id === tid)?.tableNumber)
+      .filter(Boolean)
+      .sort((a, b) => a - b)
+    return nums
+  }, [orderItems, tables])
+
+  // Toggle a table in/out of the selection set
+  function toggleTable(num) {
+    setSelectedTables(prev => {
+      const next = new Set(prev)
+      next.has(num) ? next.delete(num) : next.add(num)
+      return next
+    })
+  }
+
+  // Station + table filter
   const filteredItems = useMemo(() => {
-    if (selectedStation === 'All') return orderItems;
-    return orderItems.filter((item) => item.station === selectedStation);
-  }, [orderItems, selectedStation]);
+    let items = selectedStation === 'All' ? orderItems : orderItems.filter(i => i.station === selectedStation)
+    if (selectedTables.size > 0) {
+      const allowedIds = new Set(
+        tables.filter(t => selectedTables.has(t.tableNumber)).map(t => t.id)
+      )
+      items = items.filter(i => allowedIds.has(i.tableId))
+    }
+    return items
+  }, [orderItems, selectedStation, selectedTables, tables]);
 
   // Kanban columns
   const newOrders = filteredItems.filter((i) => i.status === 'placed' || i.status === 'in-kitchen');
@@ -278,6 +303,34 @@ export default function KDS() {
           🍳 {inPrep.length} in prep
           {isKitchenBusy && <span className="ml-1 font-bold">· Kitchen Busy</span>}
         </div>
+
+        {/* Table filter */}
+        {activeTableNums.length > 0 && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-xs text-gray-400 font-medium">Tables:</span>
+            {activeTableNums.map(num => (
+              <button
+                key={num}
+                onClick={() => toggleTable(num)}
+                className={`px-2.5 py-0.5 rounded-full text-xs font-semibold border transition-colors ${
+                  selectedTables.has(num)
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-white text-gray-600 border-gray-300 hover:border-amber-400 hover:text-amber-600'
+                }`}
+              >
+                T{num}
+              </button>
+            ))}
+            {selectedTables.size > 0 && (
+              <button
+                onClick={() => setSelectedTables(new Set())}
+                className="text-xs text-gray-400 hover:text-gray-600 underline ml-1"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Spacer */}
         <div className="flex-1" />
