@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import QRCode from 'react-qr-code';
@@ -775,6 +775,7 @@ function QueueTab() {
   const [qrInfo, setQrInfo] = useState(null);
   const [showJoinQR, setShowJoinQR] = useState(false);
   const joinUrl = `${window.location.origin}${import.meta.env.BASE_URL}queue/join`;
+  const [statusQrBookingId, setStatusQrBookingId] = useState(null);
 
   // Walk-in form state
   const [wiGuestName, setWiGuestName]         = useState('');
@@ -1145,7 +1146,8 @@ function QueueTab() {
                   const ewt = waitingPosition >= 0 ? `~${(waitingPosition + 1) * 20} min` : '—';
 
                   return (
-                    <tr key={booking.id} className="hover:bg-gray-50 transition">
+                  <React.Fragment key={booking.id}>
+                    <tr className={`hover:bg-gray-50 transition${statusQrBookingId === booking.id ? ' bg-indigo-50/40' : ''}`}>
                       <td className="px-4 py-3 font-mono font-semibold text-indigo-700">
                         {booking.token || '—'}
                       </td>
@@ -1170,6 +1172,13 @@ function QueueTab() {
                         <div className="flex items-center justify-end gap-2">
                           {booking.status === 'waiting' && (
                             <>
+                              <button
+                                onClick={() => setStatusQrBookingId(id => id === booking.id ? null : booking.id)}
+                                title="Show tracking QR"
+                                className={`text-xs px-2 py-1 border rounded-lg transition font-medium whitespace-nowrap ${statusQrBookingId === booking.id ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
+                              >
+                                📲 QR
+                              </button>
                               <button
                                 onClick={() => setAssignTarget(booking)}
                                 className="text-xs px-2.5 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition font-medium whitespace-nowrap"
@@ -1196,6 +1205,30 @@ function QueueTab() {
                         </div>
                       </td>
                     </tr>
+                    {statusQrBookingId === booking.id && (() => {
+                      const statusUrl = `${window.location.origin}${import.meta.env.BASE_URL}queue/status/${booking.id}`;
+                      return (
+                        <tr className="bg-indigo-50 border-t border-indigo-100">
+                          <td colSpan={8} className="px-4 py-4">
+                            <div className="flex items-center gap-5">
+                              <div className="bg-white p-2.5 rounded-xl shadow-sm border border-indigo-100 flex-shrink-0">
+                                <QRCode value={statusUrl} size={100} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-sm font-semibold text-indigo-800 mb-0.5">
+                                  {booking.guestName} — Queue Tracking Link
+                                </p>
+                                <p className="text-xs text-indigo-600 mb-2">
+                                  Share this QR or URL so the guest can track their position live.
+                                </p>
+                                <p className="text-xs font-mono bg-white border border-indigo-200 rounded px-2 py-1 text-indigo-700 break-all select-all">{statusUrl}</p>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })()}
+                  </React.Fragment>
                   );
                 })}
               </tbody>
