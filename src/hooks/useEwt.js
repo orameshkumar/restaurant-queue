@@ -14,6 +14,13 @@ export function useEwt() {
     'Private Dining': 45,
   })
   const [loading, setLoading] = useState(true)
+  const [tick, setTick] = useState(0)
+
+  // Tick every minute so remaining-time calculations stay fresh without a table change
+  useEffect(() => {
+    const t = setInterval(() => setTick(n => n + 1), 60000)
+    return () => clearInterval(t)
+  }, [])
 
   // Live subscription to tables
   useEffect(() => {
