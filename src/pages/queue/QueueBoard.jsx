@@ -1,11 +1,10 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect } from 'react'
 import { collection, query, where, onSnapshot, doc, getDoc } from 'firebase/firestore'
-import { useNavigate } from 'react-router-dom'
 import QRCode from 'react-qr-code'
 import { db } from '../../firebase/config'
 
 const TODAY = new Date().toISOString().split('T')[0]
-const EWT_PER_PARTY = 20 // minutes per party ahead
+const EWT_PER_PARTY = 20
 
 function maskName(name = '') {
   const parts = name.trim().split(' ')
@@ -13,13 +12,23 @@ function maskName(name = '') {
   return parts[0] + ' ' + parts.slice(1).map(p => p[0] + '.').join(' ')
 }
 
-export default function QueueBoard() {
-  const navigate = useNavigate()
-  const [queue, setQueue] = useState([])
-  const [restaurantName, setRestaurantName] = useState('Restaurant')
-  const [tick, setTick] = useState(0)
+function Clock() {
+  const [time, setTime] = useState(new Date())
+  useEffect(() => {
+    const t = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <span>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+  )
+}
 
-  const joinUrl = `${window.location.origin}/queue/join`
+export default function QueueBoard() {
+  const [waiting, setWaiting]   = useState([])
+  const [seated, setSeated]     = useState([])   // recently seated (today)
+  const [restaurantName, setRestaurantName] = useState('Restaurant')
+
+  const joinUrl = `${window.location.origin}${import.meta.env.BASE_URL}queue/join`
 
   useEffect(() => {
     getDoc(doc(db, 'restaurantSettings', 'main')).then(snap => {
@@ -27,6 +36,7 @@ export default function QueueBoard() {
     }).catch(() => {})
   }, [])
 
+  // Live waiting queue
   useEffect(() => {
     const q = query(
       collection(db, 'bookings'),
@@ -34,81 +44,111 @@ export default function QueueBoard() {
       where('status', '==', 'waiting')
     )
     return onSnapshot(q, snap => {
-      const docs = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => (a.queueSequence ?? 0) - (b.queueSequence ?? 0))
-      setQueue(docs)
+      setWaiting(
+        snap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (a.queueSequence ?? 0) - (b.queueSequence ?? 0))
+      )
     })
   }, [])
 
-  // Refresh clock every minute for EWT display
+  // Recently seated (last ~5) for "Now Serving" strip
   useEffect(() => {
-    const t = setInterval(() => setTick(n => n + 1), 60000)
-    return () => clearInterval(t)
+    const q = query(
+      collection(db, 'bookings'),
+      where('date', '==', TODAY),
+      where('status', '==', 'seated')
+    )
+    return onSnapshot(q, snap => {
+      const all = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .sort((a, b) => (b.seatedAt?.seconds ?? 0) - (a.seatedAt?.seconds ?? 0))
+      setSeated(all.slice(0, 5))
+    })
   }, [])
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col select-none">
+
       {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5 border-b border-gray-700">
+      <header className="flex items-center justify-between px-8 py-4 border-b border-gray-700 bg-gray-900">
         <div>
           <h1 className="text-2xl font-bold text-amber-400">🍽️ {restaurantName}</h1>
           <p className="text-sm text-gray-400 mt-0.5">Live Waiting Queue</p>
         </div>
-        <div className="text-right">
-          <p className="text-3xl font-bold text-white">{queue.length}</p>
-          <p className="text-xs text-gray-400">parties waiting</p>
+        <div className="flex items-center gap-8">
+          <div className="text-center">
+            <p className="text-3xl font-bold text-white">{waiting.length}</p>
+            <p className="text-xs text-gray-400">waiting</p>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-semibold text-gray-300"><Clock /></p>
+            <p className="text-xs text-gray-500">{new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+          </div>
         </div>
       </header>
 
+      {/* Now Serving strip */}
+      {seated.length > 0 && (
+        <div className="bg-green-900/60 border-b border-green-700/50 px-8 py-3 flex items-center gap-4 flex-wrap">
+          <span className="text-xs font-bold text-green-400 uppercase tracking-widest whitespace-nowrap">✅ Now Seated</span>
+          {seated.map(b => (
+            <span key={b.id} className="flex items-center gap-2 bg-green-800/60 border border-green-700/50 rounded-full px-3 py-1 text-sm">
+              <span className="font-mono text-green-300 text-xs">#{b.token}</span>
+              <span className="font-semibold text-white">{maskName(b.guestName)}</span>
+              {b.tableNumber && <span className="text-green-400 font-bold">→ T{b.tableNumber}</span>}
+            </span>
+          ))}
+        </div>
+      )}
+
       <div className="flex flex-1 gap-0 overflow-hidden">
+
         {/* Queue list */}
         <div className="flex-1 overflow-y-auto p-6">
-          {queue.length === 0 ? (
+          {waiting.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-3">
-              <p className="text-5xl">🎉</p>
-              <p className="text-lg font-medium">No one waiting right now!</p>
-              <p className="text-sm">Walk-ins welcome.</p>
+              <p className="text-6xl">🎉</p>
+              <p className="text-xl font-semibold">No one waiting right now!</p>
+              <p className="text-sm">Walk-ins welcome — scan the QR to join.</p>
             </div>
           ) : (
-            <div className="space-y-3 max-w-2xl">
-              {queue.map((b, idx) => (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 max-w-4xl">
+              {waiting.map((b, idx) => (
                 <div
                   key={b.id}
-                  className={`flex items-center gap-4 rounded-xl px-5 py-4 border ${
+                  className={`flex items-center gap-4 rounded-2xl px-5 py-4 border ${
                     idx === 0
-                      ? 'bg-amber-500/20 border-amber-500/60'
+                      ? 'bg-amber-500/20 border-amber-500/50 ring-1 ring-amber-500/30'
                       : 'bg-gray-800 border-gray-700'
                   }`}
                 >
-                  {/* Position */}
-                  <span className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${
+                  {/* Position bubble */}
+                  <span className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-black text-xl ${
                     idx === 0 ? 'bg-amber-500 text-white' : 'bg-gray-700 text-gray-300'
                   }`}>
                     {idx + 1}
                   </span>
 
-                  {/* Token + name */}
+                  {/* Info */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-gray-400 font-mono bg-gray-700 px-1.5 py-0.5 rounded">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-mono bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
                         #{b.token ?? '—'}
                       </span>
                       {idx === 0 && (
-                        <span className="text-xs font-semibold text-amber-400 animate-pulse">● Next up</span>
+                        <span className="text-xs font-bold text-amber-400 animate-pulse">● Next up</span>
                       )}
                     </div>
-                    <p className="text-base font-semibold text-white mt-0.5 truncate">
-                      {maskName(b.guestName)}
-                    </p>
-                    <p className="text-xs text-gray-400">Party of {b.partySize}</p>
+                    <p className="text-lg font-bold text-white truncate">{maskName(b.guestName)}</p>
+                    <p className="text-xs text-gray-400">👥 Party of {b.partySize}{b.tablePreference && b.tablePreference !== 'Any' ? ` · ${b.tablePreference}` : ''}</p>
                   </div>
 
                   {/* EWT */}
                   <div className="text-right flex-shrink-0">
                     <p className="text-xs text-gray-500">Est. wait</p>
-                    <p className={`text-lg font-bold ${idx === 0 ? 'text-amber-400' : 'text-gray-300'}`}>
-                      ~{idx * EWT_PER_PARTY} min
+                    <p className={`text-xl font-bold ${idx === 0 ? 'text-amber-400' : 'text-gray-300'}`}>
+                      {idx === 0 ? 'Ready!' : `~${idx * EWT_PER_PARTY}m`}
                     </p>
                   </div>
                 </div>
@@ -117,22 +157,18 @@ export default function QueueBoard() {
           )}
         </div>
 
-        {/* QR panel */}
-        <div className="w-72 flex-shrink-0 border-l border-gray-700 flex flex-col items-center justify-center p-8 gap-5 bg-gray-800">
-          <p className="text-sm font-semibold text-gray-400 uppercase tracking-wide text-center">
-            Scan to join the queue
+        {/* QR sidebar */}
+        <div className="w-64 flex-shrink-0 border-l border-gray-700 flex flex-col items-center justify-center p-6 gap-5 bg-gray-800">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-widest text-center">
+            Join the queue
           </p>
-          <div className="bg-white p-4 rounded-2xl shadow-xl">
-            <QRCode value={joinUrl} size={180} />
+          <div className="bg-white p-3 rounded-2xl shadow-xl">
+            <QRCode value={joinUrl} size={160} />
           </div>
           <p className="text-xs text-gray-500 text-center break-all">{joinUrl}</p>
-          <button
-            onClick={() => navigate('/queue/join')}
-            className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-sm font-semibold transition"
-          >
-            Join Queue
-          </button>
+          <p className="text-xs text-gray-500 text-center">Scan to add your name &amp; track your position</p>
         </div>
+
       </div>
     </div>
   )
