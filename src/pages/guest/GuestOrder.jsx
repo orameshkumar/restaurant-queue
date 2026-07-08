@@ -78,8 +78,10 @@ export default function GuestOrder() {
       return
     }
 
-    const nameMatch   = norm(verifyName)   === norm(booking.guestName)
-    const mobileMatch = normMobile(verifyMobile) === normMobile(booking.mobile)
+    const nameMatch   = norm(verifyName) === norm(booking.guestName)
+    const bookingMobile = normMobile(booking.mobile ?? '')
+    // If no mobile was recorded at booking time, only name is checked
+    const mobileMatch = bookingMobile === '' || bookingMobile === normMobile(verifyMobile)
 
     if (nameMatch && mobileMatch) {
       setVerified(true)
