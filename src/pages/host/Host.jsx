@@ -773,6 +773,8 @@ function QueueTab() {
   const [showReservationForm, setShowReservationForm] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
   const [qrInfo, setQrInfo] = useState(null);
+  const [showJoinQR, setShowJoinQR] = useState(false);
+  const joinUrl = `${window.location.origin}/queue/join`;
 
   // Walk-in form state
   const [wiGuestName, setWiGuestName]         = useState('');
@@ -986,9 +988,33 @@ function QueueTab() {
 
       {/* Walk-in Form */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
           <h3 className="font-semibold text-gray-800">Add Walk-in Guest</h3>
+          <button
+            type="button"
+            onClick={() => setShowJoinQR(v => !v)}
+            title="Show self-join QR code"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors ${
+              showJoinQR ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400'
+            }`}
+          >
+            📲 Self-Join QR
+          </button>
         </div>
+
+        {/* QR modal inline panel */}
+        {showJoinQR && (
+          <div className="px-5 py-4 bg-indigo-50 border-b border-indigo-100 flex flex-col sm:flex-row items-center gap-5">
+            <div className="bg-white p-3 rounded-xl shadow-sm flex-shrink-0">
+              <QRCode value={joinUrl} size={120} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-indigo-800 mb-1">Customer self-registration</p>
+              <p className="text-xs text-indigo-600 mb-2">Ask the customer to scan this QR — they can add themselves to the queue and track their position live.</p>
+              <p className="text-xs font-mono bg-white border border-indigo-200 rounded px-2 py-1 text-indigo-700 break-all">{joinUrl}</p>
+            </div>
+          </div>
+        )}
         <form onSubmit={addWalkIn} className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>

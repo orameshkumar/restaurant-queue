@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
 import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 
@@ -165,9 +165,15 @@ export default function QueueJoin() {
           </button>
         </form>
 
-        <p className="text-xs text-gray-400 text-center mt-4">
-          You'll get a token and can track your position live.
-        </p>
+        <div className="flex items-center justify-between mt-4">
+          <p className="text-xs text-gray-400">You'll get a token and track your position live.</p>
+          <Link
+            to="/queue"
+            className="text-xs text-indigo-600 hover:text-indigo-800 font-medium whitespace-nowrap"
+          >
+            View queue →
+          </Link>
+        </div>
       </div>
     </div>
   )
