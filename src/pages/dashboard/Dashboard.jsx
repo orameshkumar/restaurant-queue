@@ -62,18 +62,30 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Today's Queue */}
         <div className="bg-white rounded-xl shadow-sm p-5">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Today's Queue</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-base font-semibold text-gray-900">Today's Queue</h2>
+            <button
+              onClick={() => navigate('/host', { state: { activeTab: 'queue' } })}
+              className="text-xs text-indigo-600 hover:text-indigo-800 font-medium"
+            >
+              View all →
+            </button>
+          </div>
           {waitingQueue.length === 0 ? (
             <p className="text-sm text-gray-400 text-center py-8">No guests waiting right now.</p>
           ) : (
             <div className="divide-y divide-gray-100">
               {waitingQueue.map((b, idx) => (
-                <div key={b.id} className="flex items-center justify-between py-3">
+                <button
+                  key={b.id}
+                  onClick={() => navigate('/host', { state: { activeTab: 'queue' } })}
+                  className="w-full flex items-center justify-between py-3 hover:bg-gray-50 -mx-1 px-1 rounded-lg transition-colors"
+                >
                   <div className="flex items-center gap-3">
                     <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 text-amber-700 text-xs font-bold">
                       {b.token ?? '#'}
                     </span>
-                    <div>
+                    <div className="text-left">
                       <p className="text-sm font-medium text-gray-900">{b.guestName}</p>
                       <p className="text-xs text-gray-500">Party of {b.partySize}</p>
                     </div>
@@ -82,7 +94,7 @@ export default function Dashboard() {
                     <p className="text-xs text-gray-400">EWT</p>
                     <p className="text-sm font-semibold text-gray-700">~{(idx + 1) * 20} min</p>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
