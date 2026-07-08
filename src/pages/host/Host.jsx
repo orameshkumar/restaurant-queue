@@ -449,7 +449,7 @@ function QRCodeModal({ tableId, tableNumber, guestName, onClose }) {
 
 // ─── Table Card ───────────────────────────────────────────────────────────────
 
-function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems = false }) {
+function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems = false, allDelivered = false }) {
   const [showAssign, setShowAssign] = useState(false);
   const [showOrder, setShowOrder] = useState(false);
   const [qrInfo, setQrInfo] = useState(null);
@@ -590,9 +590,13 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
               {table.status !== 'bill_requested' && (
                 <button
                   onClick={() => markStatus('bill_requested')}
-                  className="text-xs px-3 py-1.5 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium"
+                  className={`text-xs px-3 py-1.5 rounded-lg text-white transition font-medium ${
+                    allDelivered
+                      ? 'bg-green-600 hover:bg-green-700 animate-pulse'
+                      : 'bg-purple-600 hover:bg-purple-700'
+                  }`}
                 >
-                  💳 Send to Billing
+                  {allDelivered ? '✅ Send to Billing' : '💳 Send to Billing'}
                 </button>
               )}
               <button
@@ -655,7 +659,19 @@ const OCCUPIED_STATUSES = ['occupied', 'ordering', 'eating', 'bill_requested'];
 function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
   const { docs: tables = [], loading } = useCollection('tables', 'tableNumber');
   const { docs: readyItems = [] } = useCollection('orderItems', null, null, [['status', '==', 'ready']]);
+  const { docs: activeItems = [] } = useCollection('orderItems', null, null, [['status', 'in', ['placed','in-kitchen','in-preparation']]]);
+  const { docs: servedItems = [] } = useCollection('orderItems', null, null, [['status', '==', 'served']]);
+
   const readyTableIds = useMemo(() => new Set(readyItems.map(i => i.tableId)), [readyItems]);
+
+  // Tables where every kitchen item is served (none still cooking/ready) and at least one was served
+  const allDeliveredTableIds = useMemo(() => {
+    const activeSet = new Set(activeItems.map(i => i.tableId));
+    const readySet  = new Set(readyItems.map(i => i.tableId));
+    const servedSet = new Set(servedItems.map(i => i.tableId));
+    // All delivered = has served items, zero active items, zero ready items
+    return new Set([...servedSet].filter(tid => !activeSet.has(tid) && !readySet.has(tid)));
+  }, [activeItems, readyItems, servedItems]);
 
   const [statusFilter, setStatusFilter] = useState(initialFilter === 'occupied' ? 'occupied' : 'all');
 
@@ -721,6 +737,7 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
                   waitingBookings={waitingBookings}
                   availableTables={availableTables}
                   hasReadyItems={readyTableIds.has(table.id)}
+                  allDelivered={allDeliveredTableIds.has(table.id)}
                 />
               ))}
             </div>
