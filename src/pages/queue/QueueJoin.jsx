@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { collection, addDoc, serverTimestamp, doc, getDoc } from 'firebase/firestore'
+import { collection, addDoc, serverTimestamp, doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 
 const TODAY = new Date().toISOString().split('T')[0]
-const TABLE_PREFS = ['Any', 'Window', 'Booth', 'Outdoor']
+const ALL_SECTIONS = ['Indoor', 'Outdoor', 'Bar & Lounge', 'Private Dining']
 
 function generateToken() {
   return 'Q' + Math.floor(100 + Math.random() * 900)
@@ -18,11 +18,29 @@ export default function QueueJoin() {
   })
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [activeSections, setActiveSections] = useState(ALL_SECTIONS)
 
   useEffect(() => {
     getDoc(doc(db, 'restaurantSettings', 'main')).then(snap => {
       if (snap.exists()) setRestaurantName(snap.data().restaurantName ?? 'Restaurant')
     }).catch(() => {})
+  }, [])
+
+  // Live: filter out sections where all tables are blocked
+  useEffect(() => {
+    return onSnapshot(collection(db, 'tables'), snap => {
+      const tables = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      const active = ALL_SECTIONS.filter(s => {
+        const st = tables.filter(t => t.section === s)
+        return st.length > 0 && st.some(t => t.status !== 'blocked')
+      })
+      setActiveSections(active)
+      // Reset preference if selected section became inactive
+      setForm(prev => ({
+        ...prev,
+        tablePreference: active.includes(prev.tablePreference) ? prev.tablePreference : 'Any',
+      }))
+    })
   }, [])
 
   function handleChange(e) {
@@ -135,7 +153,7 @@ export default function QueueJoin() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Table Preference</label>
             <div className="flex gap-2 flex-wrap">
-              {TABLE_PREFS.map(p => (
+              {['Any', ...activeSections].map(p => (
                 <button
                   key={p}
                   type="button"

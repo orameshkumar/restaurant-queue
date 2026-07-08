@@ -46,7 +46,7 @@ const STATUS_CARD_BORDER = {
   blocked:        'border-red-300',
 };
 
-const TABLE_PREFS = ['Any', 'Window', 'Booth', 'Outdoor'];
+const SECTIONS = ['Indoor', 'Outdoor', 'Bar & Lounge', 'Private Dining'];
 
 const BOOKING_STATUS_STYLES = {
   waiting:   'bg-yellow-100 text-yellow-800',
@@ -770,7 +770,7 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
 
 function QueueTab() {
   const { docs: allBookings = [], loading } = useCollection('bookings', 'queueSequence', 'asc');
-  const { calcEwt } = useEwt();
+  const { calcEwt, activeSections } = useEwt();
 
   const [showReservationForm, setShowReservationForm] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
@@ -1058,7 +1058,8 @@ function QueueTab() {
                 onChange={e => setWiPref(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
               >
-                {TABLE_PREFS.map(p => <option key={p}>{p}</option>)}
+                <option value="Any">Any</option>
+                {activeSections.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
           </div>

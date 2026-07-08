@@ -85,5 +85,11 @@ export function useEwt() {
     return Math.ceil((partiesAhead - freeTables.length) * avgRemaining)
   }
 
-  return { calcEwt, sectionEwt, loading }
+  // Sections with at least one non-blocked table
+  const activeSections = SECTIONS.filter(s => {
+    const sectionTables = tables.filter(t => t.section === s)
+    return sectionTables.length > 0 && sectionTables.some(t => t.status !== 'blocked')
+  })
+
+  return { calcEwt, sectionEwt, activeSections, loading }
 }
