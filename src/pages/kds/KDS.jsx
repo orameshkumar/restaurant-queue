@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { useLocation } from 'react-router-dom';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
@@ -184,9 +185,9 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
   );
 }
 
-function KanbanColumn({ title, items, tables, staffMap, currentProfile, tick }) {
+function KanbanColumn({ title, items, tables, staffMap, currentProfile, tick, highlighted }) {
   return (
-    <div className="flex flex-col gap-3 min-w-0 flex-1">
+    <div className={`flex flex-col gap-3 min-w-0 flex-1 rounded-xl transition-all ${highlighted ? 'ring-2 ring-indigo-400 bg-indigo-50/40 p-2' : ''}`}>
       {/* Column header */}
       <div className="flex items-center gap-2 px-1">
         <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide flex-1 truncate">{title}</h2>
@@ -218,8 +219,19 @@ function KanbanColumn({ title, items, tables, staffMap, currentProfile, tick }) 
   );
 }
 
+// Map dashboard orderItem status → KDS column index (0=New, 1=InPrep, 2=Ready)
+const STATUS_TO_COLUMN = {
+  placed: 0, 'in-kitchen': 0,
+  'in-preparation': 1,
+  ready: 2,
+}
+
 export default function KDS() {
   const { profile } = useAuth();
+  const location = useLocation();
+  const incomingStatus = location.state?.filterStatus ?? null;
+  const highlightCol = incomingStatus != null ? (STATUS_TO_COLUMN[incomingStatus] ?? null) : null;
+
   const [selectedStation, setSelectedStation] = useState('All');
   const [selectedTables, setSelectedTables] = useState(new Set()); // empty = all tables
   const [tick, setTick] = useState(0);
@@ -367,6 +379,7 @@ export default function KDS() {
             staffMap={staffMap}
             currentProfile={profile}
             tick={tick}
+            highlighted={highlightCol === 0}
           />
           <KanbanColumn
             title="In Preparation 🍳"
@@ -375,6 +388,7 @@ export default function KDS() {
             staffMap={staffMap}
             currentProfile={profile}
             tick={tick}
+            highlighted={highlightCol === 1}
           />
           <KanbanColumn
             title="Ready for Pickup ✅"
@@ -383,6 +397,7 @@ export default function KDS() {
             staffMap={staffMap}
             currentProfile={profile}
             tick={tick}
+            highlighted={highlightCol === 2}
           />
         </div>
       )}

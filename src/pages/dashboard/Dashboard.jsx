@@ -96,12 +96,19 @@ export default function Dashboard() {
           ) : (
             <div className="divide-y divide-gray-100">
               {kitchenStatuses.map((status) => (
-                <div key={status} className="flex items-center justify-between py-2">
+                <button
+                  key={status}
+                  onClick={() => navigate('/kds', { state: { filterStatus: status } })}
+                  className="w-full flex items-center justify-between py-2 px-1 -mx-1 rounded-lg hover:bg-gray-50 transition-colors cursor-pointer group"
+                >
                   <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_STYLES[status]}`}>
                     {status.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
                   </span>
-                  <span className="text-sm font-semibold text-gray-800">{kitchenCounts[status]}</span>
-                </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-gray-800">{kitchenCounts[status]}</span>
+                    <span className="text-gray-300 group-hover:text-gray-500 text-xs">→</span>
+                  </div>
+                </button>
               ))}
             </div>
           )}
