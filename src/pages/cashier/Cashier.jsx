@@ -233,7 +233,7 @@ export default function Cashier() {
   const tipAmount = useMemo(() => {
     if (tipOption === '10') return discountedSubtotal * 0.1;
     if (tipOption === '15') return discountedSubtotal * 0.15;
-    if (tipOption === 'custom') return parseFloat(customTip) || 0;
+    if (tipOption === 'custom') { const v = parseFloat(customTip); return isNaN(v) ? 0 : v; }
     return 0;
   }, [tipOption, customTip, discountedSubtotal]);
 

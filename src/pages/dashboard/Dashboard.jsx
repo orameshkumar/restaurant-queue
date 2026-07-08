@@ -55,7 +55,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard icon="🪑" value={tablesOccupied}  label="Tables Occupied"  color="text-amber-500" onClick={() => navigate('/host', { state: { filterStatus: 'occupied' } })} />
         <StatCard icon="⏳" value={waitingQueue.length} label="Waiting Queue" color="text-blue-500" />
-        <StatCard icon="🍳" value={activeItems.length}  label="Active Orders" color="text-orange-500" />
+        <StatCard icon="🍳" value={activeItems.length}  label="Active Orders" color="text-orange-500" onClick={() => navigate('/orders')} />
         <StatCard icon="💰" value={`₹${revenueToday.toLocaleString('en-IN')}`} label="Revenue Today" color="text-green-500" />
       </div>
 
