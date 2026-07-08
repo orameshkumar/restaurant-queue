@@ -14,6 +14,7 @@ import Reports  from './pages/reports/Reports'
 import Settings from './pages/settings/Settings'
 import Board    from './pages/board/Board'
 import GuestOrder from './pages/guest/GuestOrder'
+import Orders  from './pages/orders/Orders'
 
 const MANAGER_ROLES = ['admin', 'manager']
 
@@ -33,6 +34,7 @@ export default function App() {
       <Route path="/guest/:tableId" element={<GuestOrder />} />
 
       <Route path="/"         element={<Protected><Dashboard /></Protected>} />
+      <Route path="/orders"   element={<Protected><Orders /></Protected>} />
       <Route path="/host"     element={<Protected roles={[...MANAGER_ROLES,'host']}><Host /></Protected>} />
       <Route path="/server"   element={<Protected roles={[...MANAGER_ROLES,'server']}><Server /></Protected>} />
       <Route path="/kds"      element={<Protected roles={[...MANAGER_ROLES,'chef','kitchen_manager']}><KDS /></Protected>} />
