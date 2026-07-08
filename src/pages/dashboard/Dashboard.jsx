@@ -34,12 +34,12 @@ const STATUS_STYLES = {
 export default function Dashboard() {
   const navigate = useNavigate()
   const { docs: tables   = [] } = useCollection('tables',     'tableNumber')
-  const { docs: bookings = [] } = useCollection('bookings',   'queueSequence', 'asc', [['date', '==', TODAY]])
+  const { docs: bookings = [] } = useCollection('bookings', null, null, [['date', '==', TODAY]])
   const { docs: orderItems= []} = useCollection('orderItems', 'firedAt')
   const { docs: bills    = [] } = useCollection('bills', null, null, [['closedDate', '==', TODAY]])
 
   const tablesOccupied = tables.filter((t) => ['occupied','ordering','eating','bill_requested'].includes(t.status)).length
-  const waitingQueue   = bookings.filter((b) => b.status === 'waiting')
+  const waitingQueue   = bookings.filter((b) => b.status === 'waiting').sort((a, b) => (a.queueSequence ?? 0) - (b.queueSequence ?? 0))
   const activeItems    = orderItems.filter((i) => ['placed','in-kitchen','in-preparation'].includes(i.status))
   const revenueToday   = bills.reduce((sum, b) => sum + (b.total ?? 0), 0)
 
