@@ -36,7 +36,7 @@ export default function Dashboard() {
   const { docs: tables   = [] } = useCollection('tables',     'tableNumber')
   const { docs: bookings = [] } = useCollection('bookings',   'queueSequence', 'asc', [['date', '==', TODAY]])
   const { docs: orderItems= []} = useCollection('orderItems', 'firedAt')
-  const { docs: bills    = [] } = useCollection('bills',      'closedAt', 'desc', [['closedDate', '==', TODAY]])
+  const { docs: bills    = [] } = useCollection('bills', null, null, [['closedDate', '==', TODAY]])
 
   const tablesOccupied = tables.filter((t) => ['occupied','ordering','eating','bill_requested'].includes(t.status)).length
   const waitingQueue   = bookings.filter((b) => b.status === 'waiting')
