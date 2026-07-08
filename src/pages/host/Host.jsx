@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
 import QRCode from 'react-qr-code';
 import { format } from 'date-fns';
@@ -642,10 +643,21 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
 
 // ─── Floor Plan Tab ───────────────────────────────────────────────────────────
 
-function FloorPlanTab({ waitingBookings }) {
+const FLOOR_FILTER_PILLS = [
+  { key: 'all',       label: 'All' },
+  { key: 'occupied',  label: 'Occupied' },
+  { key: 'available', label: 'Available' },
+  { key: 'cleaning',  label: 'Cleaning' },
+];
+
+const OCCUPIED_STATUSES = ['occupied', 'ordering', 'eating', 'bill_requested'];
+
+function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
   const { docs: tables = [], loading } = useCollection('tables', 'tableNumber');
   const { docs: readyItems = [] } = useCollection('orderItems', null, null, [['status', '==', 'ready']]);
   const readyTableIds = useMemo(() => new Set(readyItems.map(i => i.tableId)), [readyItems]);
+
+  const [statusFilter, setStatusFilter] = useState(initialFilter === 'occupied' ? 'occupied' : 'all');
 
   if (loading) {
     return (
@@ -663,13 +675,41 @@ function FloorPlanTab({ waitingBookings }) {
     );
   }
 
-  const sections = [...new Set(tables.map(t => t.section || 'Main'))].sort();
+  const filteredTables = tables.filter(t => {
+    if (statusFilter === 'all') return true;
+    if (statusFilter === 'occupied') return OCCUPIED_STATUSES.includes(t.status);
+    return t.status === statusFilter;
+  });
+
+  const sections = [...new Set(filteredTables.map(t => t.section || 'Main'))].sort();
   const availableTables = tables.filter(t => t.status === 'available');
 
   return (
     <div className="space-y-6">
+      {/* Status filter pills */}
+      <div className="flex flex-wrap gap-2">
+        {FLOOR_FILTER_PILLS.map(pill => (
+          <button
+            key={pill.key}
+            onClick={() => setStatusFilter(pill.key)}
+            className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              statusFilter === pill.key
+                ? 'bg-indigo-600 text-white border-indigo-600'
+                : 'bg-white text-gray-600 border-gray-300 hover:border-indigo-400 hover:text-indigo-600'
+            }`}
+          >
+            {pill.label}
+          </button>
+        ))}
+      </div>
+
+      {filteredTables.length === 0 && (
+        <p className="text-sm text-gray-400 text-center py-8">No tables match this filter.</p>
+      )}
+
       {sections.map(section => {
-        const sectionTables = tables.filter(t => (t.section || 'Main') === section);
+        const sectionTables = filteredTables.filter(t => (t.section || 'Main') === section);
+        if (sectionTables.length === 0) return null;
         return (
           <div key={section}>
             <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">{section}</h3>
@@ -1126,6 +1166,8 @@ function QueueTab() {
 
 export default function Host() {
   const { user } = useAuth();
+  const location = useLocation();
+  const initialFilter = location.state?.filterStatus ?? 'all';
   const [activeTab, setActiveTab] = useState('floor');
 
   const { docs: allBookings = [] } = useCollection('bookings', 'queueSequence', 'asc');
@@ -1184,7 +1226,7 @@ export default function Host() {
 
         {/* Tab Content */}
         {activeTab === 'floor' ? (
-          <FloorPlanTab waitingBookings={waitingBookings} />
+          <FloorPlanTab waitingBookings={waitingBookings} initialFilter={initialFilter} />
         ) : (
           <QueueTab />
         )}

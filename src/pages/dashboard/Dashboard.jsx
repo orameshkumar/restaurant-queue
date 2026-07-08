@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useCollection } from '../../hooks/useCollection'
 import PageHeader from '../../components/PageHeader'
 
@@ -7,9 +8,12 @@ const FORMATTED_TODAY = new Date().toLocaleDateString('en-IN', {
   weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
 })
 
-function StatCard({ icon, value, label, color = 'text-amber-500' }) {
+function StatCard({ icon, value, label, color = 'text-amber-500', onClick }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm p-5 flex items-center gap-4">
+    <div
+      className={`bg-white rounded-xl shadow-sm p-5 flex items-center gap-4 ${onClick ? 'cursor-pointer hover:shadow-md hover:ring-2 hover:ring-indigo-200 transition-all' : ''}`}
+      onClick={onClick}
+    >
       <div className={`text-3xl ${color}`}>{icon}</div>
       <div>
         <p className="text-2xl font-bold text-gray-900 leading-none">{value}</p>
@@ -27,6 +31,7 @@ const STATUS_STYLES = {
 }
 
 export default function Dashboard() {
+  const navigate = useNavigate()
   const { docs: tables   = [] } = useCollection('tables',     'tableNumber')
   const { docs: bookings = [] } = useCollection('bookings',   'queueSequence', 'asc', [['date', '==', TODAY]])
   const { docs: orderItems= []} = useCollection('orderItems', 'firedAt')
@@ -47,7 +52,7 @@ export default function Dashboard() {
       <PageHeader title="Dashboard" subtitle={FORMATTED_TODAY} />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard icon="🪑" value={tablesOccupied}  label="Tables Occupied"  color="text-amber-500" />
+        <StatCard icon="🪑" value={tablesOccupied}  label="Tables Occupied"  color="text-amber-500" onClick={() => navigate('/host', { state: { filterStatus: 'occupied' } })} />
         <StatCard icon="⏳" value={waitingQueue.length} label="Waiting Queue" color="text-blue-500" />
         <StatCard icon="🍳" value={activeItems.length}  label="Active Orders" color="text-orange-500" />
         <StatCard icon="💰" value={`₹${revenueToday.toLocaleString('en-IN')}`} label="Revenue Today" color="text-green-500" />

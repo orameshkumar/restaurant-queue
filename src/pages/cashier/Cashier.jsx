@@ -1,9 +1,11 @@
 import { useState, useMemo, useEffect } from 'react';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import QRCode from 'react-qr-code';
 import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
+import { useDocument } from '../../hooks/useDocument';
 import PageHeader from '../../components/PageHeader';
 
 const TAX_RATE = 5; // percent — replace with restaurantSettings fetch if available
@@ -155,6 +157,11 @@ function SplitModal({ total, onClose }) {
 export default function Cashier() {
   const { user } = useAuth();
 
+  // ── merchant settings for UPI QR ─────────────────────────────────────────
+  const { document: restaurantSettings } = useDocument('restaurantSettings', 'main');
+  const merchantVpa  = restaurantSettings?.upiId ?? '';
+  const merchantName = restaurantSettings?.restaurantName ?? 'Restaurant';
+
   // ── data ──────────────────────────────────────────────────────────────────
   // Show all active tables — bill_requested highlighted, others accessible too
   const { docs: allTables = [] } = useCollection('tables', 'tableNumber', 'asc');
@@ -230,6 +237,11 @@ export default function Cashier() {
   }, [tipOption, customTip, discountedSubtotal]);
 
   const total = discountedSubtotal + taxAmount + tipAmount;
+
+  // ── UPI QR URL ────────────────────────────────────────────────────────────
+  const upiUrl = selectedTable && merchantVpa
+    ? `upi://pay?pa=${merchantVpa}&pn=${encodeURIComponent(merchantName)}&am=${total.toFixed(2)}&cu=INR&tn=Table+${selectedTable.tableNumber}+Bill`
+    : '';
 
   // ── actions ───────────────────────────────────────────────────────────────
   async function handleVoidItem(reason) {
@@ -570,6 +582,20 @@ export default function Cashier() {
                   ))}
                 </div>
               </div>
+
+              {/* UPI QR code */}
+              {paymentMode === 'upi' && upiUrl && (
+                <div className="mt-3 flex flex-col items-center gap-2 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <QRCode value={upiUrl} size={160} />
+                  <p className="text-xs text-gray-500">Scan to pay {fmt(total)} via UPI</p>
+                  <p className="text-xs text-indigo-600 font-medium">{merchantVpa}</p>
+                </div>
+              )}
+              {paymentMode === 'upi' && !merchantVpa && (
+                <p className="mt-2 text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+                  UPI ID not configured. Add it in Settings → Payment.
+                </p>
+              )}
 
               {/* Actions */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-wrap gap-3">
