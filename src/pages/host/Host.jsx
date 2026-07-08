@@ -1205,29 +1205,6 @@ function QueueTab() {
                         </div>
                       </td>
                     </tr>
-                    {statusQrBookingId === booking.id && (() => {
-                      const statusUrl = `${window.location.origin}${import.meta.env.BASE_URL}queue/status/${booking.id}`;
-                      return (
-                        <tr className="bg-indigo-50 border-t border-indigo-100">
-                          <td colSpan={8} className="px-4 py-4">
-                            <div className="flex items-center gap-5">
-                              <div className="bg-white p-2.5 rounded-xl shadow-sm border border-indigo-100 flex-shrink-0">
-                                <QRCode value={statusUrl} size={100} />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-semibold text-indigo-800 mb-0.5">
-                                  {booking.guestName} — Queue Tracking Link
-                                </p>
-                                <p className="text-xs text-indigo-600 mb-2">
-                                  Share this QR or URL so the guest can track their position live.
-                                </p>
-                                <p className="text-xs font-mono bg-white border border-indigo-200 rounded px-2 py-1 text-indigo-700 break-all select-all">{statusUrl}</p>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })()}
                   </React.Fragment>
                   );
                 })}
@@ -1236,6 +1213,53 @@ function QueueTab() {
           </div>
         )}
       </div>
+
+      {/* Per-customer tracking QR modal */}
+      {statusQrBookingId && (() => {
+        const qrBooking = todayBookings.find(b => b.id === statusQrBookingId);
+        const statusUrl = `${window.location.origin}${import.meta.env.BASE_URL}queue/status/${statusQrBookingId}`;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setStatusQrBookingId(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 text-center" onClick={e => e.stopPropagation()}>
+              {/* Header */}
+              <div className="flex items-center justify-between mb-5">
+                <div className="text-left">
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Queue Tracking</p>
+                  <p className="text-lg font-bold text-gray-800 mt-0.5">{qrBooking?.guestName}</p>
+                  {qrBooking?.token && (
+                    <p className="text-xs font-mono text-indigo-600 mt-0.5">Token #{qrBooking.token} · Party of {qrBooking.partySize}</p>
+                  )}
+                </div>
+                <button
+                  onClick={() => setStatusQrBookingId(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition flex-shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* QR */}
+              <div className="flex justify-center mb-4">
+                <div className="bg-white border-2 border-indigo-100 p-4 rounded-2xl shadow-sm">
+                  <QRCode value={statusUrl} size={180} />
+                </div>
+              </div>
+
+              <p className="text-sm text-gray-500 mb-3">Scan to track your queue position live</p>
+
+              {/* URL */}
+              <p className="text-xs font-mono bg-gray-50 border border-gray-200 rounded-lg px-3 py-2 text-indigo-700 break-all select-all">{statusUrl}</p>
+
+              <button
+                onClick={() => setStatusQrBookingId(null)}
+                className="mt-5 w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-semibold transition"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Assign modal triggered from queue — user picks table; booking pre-selected */}
       {assignTarget && (
