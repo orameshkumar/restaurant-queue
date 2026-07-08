@@ -15,6 +15,7 @@ export default function QueueStatus() {
   const [seated, setSeated]       = useState(false)
   const [countdown, setCountdown] = useState(8)
   const [tableNumber, setTableNumber] = useState(null)
+  const [closeFailed, setCloseFailed] = useState(false)
 
   // Live listener on this booking
   useEffect(() => {
@@ -65,7 +66,12 @@ export default function QueueStatus() {
   // Countdown + close when seated
   useEffect(() => {
     if (!seated) return
-    if (countdown <= 0) { window.close(); return }
+    if (countdown <= 0) {
+      window.close()
+      // If close was blocked (QR-scanned tabs), show manual close message after 300ms
+      const t = setTimeout(() => setCloseFailed(true), 300)
+      return () => clearTimeout(t)
+    }
     const t = setTimeout(() => setCountdown(c => c - 1), 1000)
     return () => clearTimeout(t)
   }, [seated, countdown])
@@ -101,14 +107,20 @@ export default function QueueStatus() {
         <p className="text-sm text-green-600 mb-6">
           Welcome, {booking?.guestName}! Enjoy your meal.
         </p>
-        <p className="text-xs text-gray-400">
-          This page will close in <span className="font-semibold text-red-500">{countdown}</span> second{countdown !== 1 ? 's' : ''}…
-        </p>
+        {closeFailed ? (
+          <p className="text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl px-4 py-3">
+            You can now close this tab 👆
+          </p>
+        ) : (
+          <p className="text-xs text-gray-400">
+            This page will close in <span className="font-semibold text-red-500">{countdown}</span> second{countdown !== 1 ? 's' : ''}…
+          </p>
+        )}
         <button
-          onClick={() => window.close()}
+          onClick={() => { window.close(); setTimeout(() => setCloseFailed(true), 300) }}
           className="mt-4 px-5 py-2 bg-green-600 text-white rounded-full text-sm font-medium hover:bg-green-700 transition"
         >
-          Close
+          Close Tab
         </button>
       </div>
     </div>
