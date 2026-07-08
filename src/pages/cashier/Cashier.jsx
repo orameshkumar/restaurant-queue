@@ -8,7 +8,6 @@ import { useCollection } from '../../hooks/useCollection';
 import { useDocument } from '../../hooks/useDocument';
 import PageHeader from '../../components/PageHeader';
 
-const TAX_RATE = 5; // percent — replace with restaurantSettings fetch if available
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 const fmt = (n) =>
@@ -162,6 +161,7 @@ export default function Cashier() {
   const merchantVpa  = restaurantSettings?.upiId ?? '';
   const merchantName = restaurantSettings?.restaurantName ?? 'Restaurant';
   const merchantId   = restaurantSettings?.merchantId ?? '';
+  const TAX_RATE     = restaurantSettings?.taxRate ?? 5;
 
   // ── data ──────────────────────────────────────────────────────────────────
   // Show all active tables — bill_requested highlighted, others accessible too
