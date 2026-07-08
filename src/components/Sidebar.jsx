@@ -12,6 +12,7 @@ const NAV = [
   { to: '/menu',      label: 'Menu',       icon: '📋', roles: ['admin','manager','kitchen_manager'] },
   { to: '/tables',    label: 'Tables',     icon: '🗂️',  roles: ['admin','manager'] },
   { to: '/staff',     label: 'Staff',      icon: '👥', roles: ['admin','manager'] },
+  { to: '/queue',     label: 'Queue Board', icon: '📺', roles: ['admin','manager','host'] },
   { to: '/reports',   label: 'Reports',    icon: '📈', roles: ['admin','manager'] },
   { to: '/settings',  label: 'Settings',   icon: '⚙️',  roles: ['admin','manager'] },
 ]

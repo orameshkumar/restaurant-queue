@@ -15,6 +15,9 @@ import Settings from './pages/settings/Settings'
 import Board    from './pages/board/Board'
 import GuestOrder from './pages/guest/GuestOrder'
 import Orders  from './pages/orders/Orders'
+import QueueBoard  from './pages/queue/QueueBoard'
+import QueueJoin   from './pages/queue/QueueJoin'
+import QueueStatus from './pages/queue/QueueStatus'
 
 const MANAGER_ROLES = ['admin', 'manager']
 
@@ -32,6 +35,9 @@ export default function App() {
       <Route path="/login"    element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/board"    element={<Board />} />
       <Route path="/guest/:tableId" element={<GuestOrder />} />
+      <Route path="/queue"              element={<QueueBoard />} />
+      <Route path="/queue/join"         element={<QueueJoin />} />
+      <Route path="/queue/status/:bookingId" element={<QueueStatus />} />
 
       <Route path="/"         element={<Protected><Dashboard /></Protected>} />
       <Route path="/orders"   element={<Protected><Orders /></Protected>} />
