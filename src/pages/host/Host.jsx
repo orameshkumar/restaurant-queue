@@ -774,7 +774,7 @@ function QueueTab() {
   const [assignTarget, setAssignTarget] = useState(null);
   const [qrInfo, setQrInfo] = useState(null);
   const [showJoinQR, setShowJoinQR] = useState(false);
-  const joinUrl = `${window.location.origin}/queue/join`;
+  const joinUrl = `${window.location.origin}${import.meta.env.BASE_URL}queue/join`;
 
   // Walk-in form state
   const [wiGuestName, setWiGuestName]         = useState('');
