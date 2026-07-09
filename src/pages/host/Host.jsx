@@ -216,6 +216,7 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
       toast.success(msg)
       onAssigned({
         tableId: resolvedTable.id,
+        bookingId,
         tableNumber: resolvedTable.tableNumber,
         guestName: isWalkIn ? guestName.trim() : (selectedBooking?.guestName ?? 'Guest'),
       })
