@@ -328,18 +328,39 @@ function BillsRegisterTab({ staffMap }) {
     try {
       const fromTs = Timestamp.fromDate(dateRange.from);
       const toTs   = Timestamp.fromDate(dateRange.to);
-      // Query by createdAt so we catch open/pending bills that have no closedAt yet
-      const snap = await getDocs(query(
-        collection(db, 'bills'),
-        where('createdAt', '>=', fromTs),
-        where('createdAt', '<=', toTs)
-      ));
-      const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        .sort((a, b) => {
-          const ta = a.createdAt?.seconds ?? 0;
-          const tb = b.createdAt?.seconds ?? 0;
-          return tb - ta;
-        });
+
+      // Bills are written to Firestore only when settled — query by closedAt
+      const [billsSnap, tablesSnap] = await Promise.all([
+        getDocs(query(
+          collection(db, 'bills'),
+          where('closedAt', '>=', fromTs),
+          where('closedAt', '<=', toTs)
+        )),
+        // Also fetch tables with bill_requested / occupied status to surface unsettled bills
+        getDocs(query(collection(db, 'tables'), where('status', 'in', ['bill_requested', 'occupied', 'ordering', 'eating']))),
+      ]);
+
+      const settled = billsSnap.docs.map(d => ({ id: d.id, _source: 'bill', ...d.data() }));
+
+      // Represent each active table with an outstanding bill as a synthetic row
+      const pending = tablesSnap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => t.seatedAt) // only tables currently occupied
+        .map(t => ({
+          id:          `table-${t.id}`,
+          _source:     'table',
+          status:      t.status === 'bill_requested' ? 'bill_requested' : 'open',
+          tableNumber: t.tableNumber,
+          createdAt:   t.seatedAt,
+          closedAt:    null,
+          serverId:    t.assignedServerId ?? null,
+          paymentMode: null,
+          total:       null,
+        }));
+
+      const rows = [...settled, ...pending]
+        .sort((a, b) => (b.closedAt?.seconds ?? b.createdAt?.seconds ?? 0) - (a.closedAt?.seconds ?? a.createdAt?.seconds ?? 0));
+
       setAllBills(rows);
       setFetched(true);
     } catch (err) {
@@ -352,31 +373,31 @@ function BillsRegisterTab({ staffMap }) {
 
   const filtered = useMemo(() => {
     if (statusFilter === 'all') return allBills;
-    if (statusFilter === 'unpaid') return allBills.filter(b => b.status !== 'paid' && b.status !== 'voided');
+    if (statusFilter === 'unsettled') return allBills.filter(b => b._source === 'table');
     return allBills.filter(b => b.status === statusFilter);
   }, [allBills, statusFilter]);
 
   const counts = useMemo(() => {
-    const map = { all: allBills.length, unpaid: 0 };
+    const map = { all: allBills.length, unsettled: 0 };
     allBills.forEach(b => {
       map[b.status] = (map[b.status] || 0) + 1;
-      if (b.status !== 'paid' && b.status !== 'voided') map.unpaid++;
+      if (b._source === 'table') map.unsettled++;
     });
     return map;
   }, [allBills]);
 
-  const unpaidTotal = useMemo(
-    () => allBills.filter(b => b.status !== 'paid' && b.status !== 'voided').reduce((s, b) => s + (b.total || 0), 0),
+  const unsettledTotal = useMemo(
+    () => allBills.filter(b => b._source === 'table' && b.total).reduce((s, b) => s + (b.total || 0), 0),
     [allBills]
   );
 
   const STATUS_FILTERS = [
-    { value: 'all',             label: 'All' },
-    { value: 'unpaid',          label: 'Unpaid' },
-    { value: 'open',            label: 'Open' },
-    { value: 'bill_requested',  label: 'Pending' },
-    { value: 'paid',            label: 'Paid' },
-    { value: 'voided',          label: 'Voided' },
+    { value: 'all',            label: 'All' },
+    { value: 'unsettled',      label: 'Unsettled' },
+    { value: 'bill_requested', label: 'Bill Requested' },
+    { value: 'open',           label: 'Still Dining' },
+    { value: 'closed',         label: 'Settled' },
+    { value: 'voided',         label: 'Voided' },
   ];
 
   return (
@@ -402,15 +423,16 @@ function BillsRegisterTab({ staffMap }) {
 
       {fetched && (
         <>
-          {/* Unpaid alert */}
-          {counts.unpaid > 0 && (
+          {/* Unsettled alert */}
+          {counts.unsettled > 0 && (
             <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-5 py-4">
               <span className="text-2xl">⚠️</span>
               <div>
                 <p className="text-sm font-semibold text-amber-800">
-                  {counts.unpaid} unpaid bill{counts.unpaid > 1 ? 's' : ''} — {fmt(unpaidTotal)} outstanding
+                  {counts.unsettled} table{counts.unsettled > 1 ? 's' : ''} with unsettled bills
+                  {unsettledTotal > 0 ? ` — ${fmt(unsettledTotal)} outstanding` : ''}
                 </p>
-                <p className="text-xs text-amber-600 mt-0.5">These bills have been generated but not yet settled.</p>
+                <p className="text-xs text-amber-600 mt-0.5">These tables are still occupied and have not been settled yet.</p>
               </div>
             </div>
           )}
@@ -458,15 +480,18 @@ function BillsRegisterTab({ staffMap }) {
                   </thead>
                   <tbody>
                     {filtered.map(b => {
-                      const opened = b.createdAt?.toDate ? b.createdAt.toDate() : b.createdAt ? new Date(b.createdAt) : null;
-                      const closed = b.closedAt?.toDate  ? b.closedAt.toDate()  : b.closedAt  ? new Date(b.closedAt)  : null;
-                      const isPending = b.status !== 'paid' && b.status !== 'voided';
+                      // settled bills: use closedAt; active tables: use seatedAt (stored as createdAt on synthetic row)
+                      const opened = b._source === 'table'
+                        ? (b.createdAt?.toDate ? b.createdAt.toDate() : null)
+                        : null;
+                      const closed = b.closedAt?.toDate ? b.closedAt.toDate() : b.closedAt ? new Date(b.closedAt) : null;
+                      const isUnsettled = b._source === 'table';
                       return (
-                        <tr key={b.id} className={`border-b border-gray-50 hover:bg-gray-50 ${isPending ? 'bg-amber-50/40' : ''}`}>
+                        <tr key={b.id} className={`border-b border-gray-50 hover:bg-gray-50 ${isUnsettled ? 'bg-amber-50/40' : ''}`}>
                           <td className="py-2 px-3"><StatusBadge status={b.status} /></td>
                           <td className="py-2 px-3 text-gray-700 font-medium">Table {b.tableNumber ?? '—'}</td>
                           <td className="py-2 px-3 text-gray-500">{opened ? format(opened, 'dd MMM HH:mm') : '—'}</td>
-                          <td className="py-2 px-3 text-gray-500">{closed  ? format(closed,  'dd MMM HH:mm') : '—'}</td>
+                          <td className="py-2 px-3 text-gray-500">{closed  ? format(closed,  'dd MMM HH:mm') : isUnsettled ? <span className="text-amber-500 font-medium">In progress</span> : '—'}</td>
                           <td className="py-2 px-3 text-gray-600">{staffMap[b.serverId] || '—'}</td>
                           <td className="py-2 px-3 text-gray-600 capitalize">{b.paymentMode || '—'}</td>
                           <td className="py-2 px-3 text-right font-semibold text-gray-800">{fmt(b.total)}</td>
