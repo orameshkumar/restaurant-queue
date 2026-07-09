@@ -653,7 +653,7 @@ export default function Menu() {
                       onChange={() => toggleAvailable(item)}
                     />
                     <span className="text-xs text-gray-500">
-                      {item.available ? 'Available' : '86\'d'}
+                      {item.available ? 'Available' : 'Not Available'}
                     </span>
                   </div>
 
