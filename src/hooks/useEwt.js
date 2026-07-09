@@ -40,49 +40,37 @@ export function useEwt() {
     }).catch(() => {})
   }, [])
 
+  // All statuses that mean a table is actively in use (not yet freed)
+  const IN_USE = ['occupied', 'ordering', 'eating', 'bill_requested']
+
+  function avgRemainingForTables(inUseTables, ewt) {
+    const active = inUseTables.filter(t => t.seatedAt)
+    if (active.length === 0) return ewt
+    const remainings = active.map(t => {
+      const seated = t.seatedAt.toDate ? t.seatedAt.toDate() : new Date(t.seatedAt)
+      const minutesSinceSeated = (Date.now() - seated.getTime()) / 60000
+      return Math.max(0, ewt - minutesSinceSeated)
+    })
+    return remainings.reduce((a, b) => a + b, 0) / remainings.length
+  }
+
   function calcEwt(section, partiesAhead) {
     if (section === 'Any') {
-      // Use all tables; base turn time = min configured EWT across all sections
       const minEwt = Math.min(...SECTIONS.map(s => sectionEwt[s] ?? DEFAULT_EWT))
       const freeTables = tables.filter(t => t.status === 'available')
-      const occupiedTables = tables.filter(t => t.status === 'occupied' && t.seatedAt)
-
-      let avgRemaining
-      if (occupiedTables.length === 0) {
-        avgRemaining = minEwt
-      } else {
-        const remainings = occupiedTables.map(t => {
-          const seated = t.seatedAt.toDate ? t.seatedAt.toDate() : new Date(t.seatedAt)
-          const minutesSinceSeated = (Date.now() - seated.getTime()) / 60000
-          return Math.max(0, minEwt - minutesSinceSeated)
-        })
-        avgRemaining = remainings.reduce((a, b) => a + b, 0) / remainings.length
-      }
-
+      const inUseTables = tables.filter(t => IN_USE.includes(t.status))
+      const avg = avgRemainingForTables(inUseTables, minEwt)
       if (partiesAhead < freeTables.length) return 0
-      return Math.ceil((partiesAhead - freeTables.length) * avgRemaining)
+      return Math.ceil((partiesAhead - freeTables.length) * avg)
     }
 
-    // Specific section
     const configuredEwt = sectionEwt[section] ?? DEFAULT_EWT
     const sectionTables = tables.filter(t => t.section === section)
     const freeTables = sectionTables.filter(t => t.status === 'available')
-    const occupiedTables = sectionTables.filter(t => t.status === 'occupied' && t.seatedAt)
-
-    let avgRemaining
-    if (occupiedTables.length === 0) {
-      avgRemaining = configuredEwt
-    } else {
-      const remainings = occupiedTables.map(t => {
-        const seated = t.seatedAt.toDate ? t.seatedAt.toDate() : new Date(t.seatedAt)
-        const minutesSinceSeated = (Date.now() - seated.getTime()) / 60000
-        return Math.max(0, configuredEwt - minutesSinceSeated)
-      })
-      avgRemaining = remainings.reduce((a, b) => a + b, 0) / remainings.length
-    }
-
+    const inUseTables = sectionTables.filter(t => IN_USE.includes(t.status))
+    const avg = avgRemainingForTables(inUseTables, configuredEwt)
     if (partiesAhead < freeTables.length) return 0
-    return Math.ceil((partiesAhead - freeTables.length) * avgRemaining)
+    return Math.ceil((partiesAhead - freeTables.length) * avg)
   }
 
   // Sections with at least one non-blocked table
