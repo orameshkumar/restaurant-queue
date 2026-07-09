@@ -540,11 +540,6 @@ export default function Reports() {
     <div className="p-4 space-y-4">
       <PageHeader title="Reports & Analytics" />
 
-      {/* Build diagnostics — remove once confirmed */}
-      <div className="text-xs text-gray-400 bg-gray-50 border border-dashed border-gray-300 rounded-lg px-3 py-2">
-        🔧 Build: <span className="font-mono font-semibold text-indigo-500">v2-bills-register-2026-07-09</span> · Tabs loaded: {TABS.length}
-      </div>
-
       {/* Tab bar */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
         {TABS.map(tab => (
