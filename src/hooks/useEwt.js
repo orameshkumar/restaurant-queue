@@ -43,6 +43,11 @@ export function useEwt() {
   // All statuses that mean a table is actively in use (not yet freed)
   const IN_USE = ['occupied', 'ordering', 'eating', 'bill_requested']
 
+  // Missing/null status treated as 'available' (handles old records with no status field)
+  function isFree(t) {
+    return !t.status || t.status === 'available'
+  }
+
   function avgRemainingForTables(inUseTables, ewt) {
     const active = inUseTables.filter(t => t.seatedAt)
     if (active.length === 0) return ewt
@@ -55,21 +60,24 @@ export function useEwt() {
   }
 
   function calcEwt(section, partiesAhead) {
+    // Tables not loaded yet — don't show a false estimate
+    if (loading || tables.length === 0) return 0
+
     if (section === 'Any') {
       const minEwt = Math.min(...SECTIONS.map(s => sectionEwt[s] ?? DEFAULT_EWT))
-      const freeTables = tables.filter(t => t.status === 'available')
+      const freeTables = tables.filter(isFree)
       const inUseTables = tables.filter(t => IN_USE.includes(t.status))
-      const avg = avgRemainingForTables(inUseTables, minEwt)
       if (partiesAhead < freeTables.length) return 0
+      const avg = avgRemainingForTables(inUseTables, minEwt)
       return Math.ceil((partiesAhead - freeTables.length) * avg)
     }
 
     const configuredEwt = sectionEwt[section] ?? DEFAULT_EWT
     const sectionTables = tables.filter(t => t.section === section)
-    const freeTables = sectionTables.filter(t => t.status === 'available')
+    const freeTables = sectionTables.filter(isFree)
     const inUseTables = sectionTables.filter(t => IN_USE.includes(t.status))
-    const avg = avgRemainingForTables(inUseTables, configuredEwt)
     if (partiesAhead < freeTables.length) return 0
+    const avg = avgRemainingForTables(inUseTables, configuredEwt)
     return Math.ceil((partiesAhead - freeTables.length) * avg)
   }
 
