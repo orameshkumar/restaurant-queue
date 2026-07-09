@@ -21,5 +21,6 @@ export async function generateToken() {
     }
   })
 
-  return 'Q' + String(max + 1).padStart(3, '0')
+  const next = max + 1
+  return 'Q' + (next < 1000 ? String(next).padStart(3, '0') : String(next))
 }
