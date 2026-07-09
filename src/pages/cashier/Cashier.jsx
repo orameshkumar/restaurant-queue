@@ -373,17 +373,31 @@ export default function Cashier() {
     }
   }
 
-  // Auto-print when lastBill is set
-  useEffect(() => {
-    if (!lastBill) return;
-    // Small delay to let the hidden print DOM render
-    const t = setTimeout(() => window.print(), 300);
-    return () => clearTimeout(t);
-  }, [lastBill]);
+  // Build a print snapshot from current in-progress bill (before settle)
+  const currentBillSnapshot = useMemo(() => {
+    if (!selectedTable || orders.length === 0) return null;
+    return {
+      billId: 'PREVIEW',
+      tableNumber: selectedTable.tableNumber,
+      items: consolidatedItems,
+      subtotal, taxAmount, tax: TAX_RATE, discountAmount,
+      discount, tipAmount, tipOption, total, paymentMode,
+      restaurantName: merchantName,
+      closedAt: new Date(),
+    };
+  }, [selectedTable, orders, consolidatedItems, subtotal, taxAmount, TAX_RATE,
+      discountAmount, discount, tipAmount, tipOption, total, paymentMode, merchantName]);
+
+  const [printSnapshot, setPrintSnapshot] = useState(null);
+
+  const handlePrint = useCallback((snapshot) => {
+    setPrintSnapshot(snapshot);
+    setTimeout(() => window.print(), 300);
+  }, []);
 
   const handleReprintBill = useCallback(() => {
-    if (lastBill) window.print();
-  }, [lastBill]);
+    if (lastBill) handlePrint(lastBill);
+  }, [lastBill, handlePrint]);
 
   // ── render ────────────────────────────────────────────────────────────────
   return (
@@ -460,12 +474,35 @@ export default function Cashier() {
                   {selectedTable.assignedServerName ? ` · ${selectedTable.assignedServerName}` : ''}
                 </p>
               </div>
-              <button
-                onClick={() => setSelectedTable(null)}
-                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition flex-shrink-0"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                {/* Copies selector */}
+                <div className="flex items-center gap-1 border border-gray-200 rounded-lg px-2 py-1">
+                  <span className="text-xs text-gray-400 mr-1">Copies</span>
+                  {[1, 2, 3].map(n => (
+                    <button
+                      key={n}
+                      onClick={() => setPrintCopies(n)}
+                      className={`w-6 h-6 rounded text-xs font-bold transition-colors ${printCopies === n ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+                {/* Print Bill button */}
+                <button
+                  onClick={() => currentBillSnapshot && handlePrint(currentBillSnapshot)}
+                  disabled={orders.length === 0}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-800 text-white text-sm font-medium rounded-lg disabled:opacity-40 transition"
+                >
+                  🖨 Print Bill
+                </button>
+                <button
+                  onClick={() => setSelectedTable(null)}
+                  className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition flex-shrink-0"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
             {/* Scrollable body */}
@@ -645,20 +682,6 @@ export default function Cashier() {
                   ✂️ Split Bill
                 </button>
 
-                {/* Print copies selector */}
-                <div className="flex items-center gap-2 border border-gray-200 rounded-lg px-3 py-1.5">
-                  <span className="text-xs text-gray-500 font-medium">🖨 Copies</span>
-                  {[1, 2, 3].map(n => (
-                    <button
-                      key={n}
-                      onClick={() => setPrintCopies(n)}
-                      className={`w-7 h-7 rounded-md text-xs font-bold transition-colors ${printCopies === n ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </div>
-
                 <button
                   disabled={orders.length === 0 || settling}
                   onClick={handleSettleBill}
@@ -669,23 +692,10 @@ export default function Cashier() {
                       <span className="animate-spin">⏳</span> Processing…
                     </>
                   ) : (
-                    <>✅ Settle &amp; Print · {fmt(total)}</>
+                    <>✅ Settle Bill · {fmt(total)}</>
                   )}
                 </button>
               </div>
-
-              {/* Reprint last bill */}
-              {lastBill && (
-                <div className="flex items-center justify-between bg-gray-50 border border-gray-200 rounded-xl px-4 py-3">
-                  <p className="text-xs text-gray-500">Last bill: Table {lastBill.tableNumber} · {fmt(lastBill.total)}</p>
-                  <button
-                    onClick={handleReprintBill}
-                    className="text-xs px-3 py-1.5 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition font-medium"
-                  >
-                    🖨 Reprint
-                  </button>
-                </div>
-              )}
             </div>
             </div>{/* end scrollable body */}
           </div>{/* end modal panel */}
@@ -694,15 +704,15 @@ export default function Cashier() {
       </div>
 
       {/* ── Hidden print layout (screen-hidden, print-visible) ─────────── */}
-      {lastBill && (
+      {printSnapshot && (
         <div ref={printRef} className="print-bill-root">
           {Array.from({ length: printCopies }).map((_, copyIdx) => (
             <div key={copyIdx} className="print-bill-copy">
               <div className="print-bill-header">
-                <p className="print-bill-restaurant">{lastBill.restaurantName}</p>
+                <p className="print-bill-restaurant">{printSnapshot.restaurantName}</p>
                 <p className="print-bill-sub">Tax Invoice</p>
-                <p className="print-bill-sub">Table {lastBill.tableNumber} &nbsp;·&nbsp; Bill #{lastBill.billId.slice(-6).toUpperCase()}</p>
-                <p className="print-bill-sub">{lastBill.closedAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                <p className="print-bill-sub">Table {printSnapshot.tableNumber}{printSnapshot.billId !== 'PREVIEW' ? ` · Bill #${printSnapshot.billId.slice(-6).toUpperCase()}` : ''}</p>
+                <p className="print-bill-sub">{printSnapshot.closedAt.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}</p>
                 {printCopies > 1 && <p className="print-bill-copy-label">{copyIdx === 0 ? 'Customer Copy' : copyIdx === 1 ? 'Restaurant Copy' : `Copy ${copyIdx + 1}`}</p>}
               </div>
               <table className="print-bill-table">
@@ -710,7 +720,7 @@ export default function Cashier() {
                   <tr><th>Item</th><th>Qty</th><th>Rate</th><th>Amt</th></tr>
                 </thead>
                 <tbody>
-                  {lastBill.items.map((item, i) => (
+                  {printSnapshot.items.map((item, i) => (
                     <tr key={i}>
                       <td>{item.name}</td>
                       <td className="center">{item.qty}</td>
@@ -721,12 +731,12 @@ export default function Cashier() {
                 </tbody>
               </table>
               <div className="print-bill-totals">
-                <div className="print-bill-row"><span>Subtotal</span><span>{lastBill.subtotal.toFixed(2)}</span></div>
-                {lastBill.discount && <div className="print-bill-row discount"><span>Discount</span><span>− {lastBill.discountAmount.toFixed(2)}</span></div>}
-                <div className="print-bill-row"><span>GST ({lastBill.tax}%)</span><span>{lastBill.taxAmount.toFixed(2)}</span></div>
-                {lastBill.tipAmount > 0 && <div className="print-bill-row"><span>Tip</span><span>{lastBill.tipAmount.toFixed(2)}</span></div>}
-                <div className="print-bill-row total"><span>TOTAL</span><span>₹ {lastBill.total.toFixed(2)}</span></div>
-                <div className="print-bill-row"><span>Payment</span><span style={{ textTransform: 'capitalize' }}>{lastBill.paymentMode}</span></div>
+                <div className="print-bill-row"><span>Subtotal</span><span>{printSnapshot.subtotal.toFixed(2)}</span></div>
+                {printSnapshot.discount && <div className="print-bill-row discount"><span>Discount</span><span>− {printSnapshot.discountAmount.toFixed(2)}</span></div>}
+                <div className="print-bill-row"><span>GST ({printSnapshot.tax}%)</span><span>{printSnapshot.taxAmount.toFixed(2)}</span></div>
+                {printSnapshot.tipAmount > 0 && <div className="print-bill-row"><span>Tip</span><span>{printSnapshot.tipAmount.toFixed(2)}</span></div>}
+                <div className="print-bill-row total"><span>TOTAL</span><span>₹ {printSnapshot.total.toFixed(2)}</span></div>
+                <div className="print-bill-row"><span>Payment</span><span style={{ textTransform: 'capitalize' }}>{printSnapshot.paymentMode}</span></div>
               </div>
               <p className="print-bill-footer">Thank you for dining with us!</p>
               {copyIdx < printCopies - 1 && <div className="print-page-break" />}
