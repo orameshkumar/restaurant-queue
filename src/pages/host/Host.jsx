@@ -430,9 +430,9 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
 
 // ─── QR Code Modal ────────────────────────────────────────────────────────────
 
-function QRCodeModal({ tableId, tableNumber, guestName, onClose }) {
+function QRCodeModal({ tableId, bookingId, tableNumber, guestName, onClose }) {
   const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '')
-  const url = `${base}/guest/${tableId}`
+  const url = `${base}/guest/${tableId}/${bookingId}`
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -539,7 +539,7 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
         if (snap.exists()) guestName = snap.data().guestName ?? 'Guest'
       } catch {}
     }
-    setQrInfo({ tableId: table.id, tableNumber: table.tableNumber, guestName })
+    setQrInfo({ tableId: table.id, bookingId: table.currentBookingId, tableNumber: table.tableNumber, guestName })
   }
 
   const elapsed = table.status === 'occupied' ? timeOccupied(table.seatedAt) : null;

@@ -34,7 +34,7 @@ export default function App() {
     <Routes>
       <Route path="/login"    element={user ? <Navigate to="/" replace /> : <Login />} />
       <Route path="/board"    element={<Board />} />
-      <Route path="/guest/:tableId" element={<GuestOrder />} />
+      <Route path="/guest/:tableId/:bookingId" element={<GuestOrder />} />
       <Route path="/queue"              element={<QueueBoard />} />
       <Route path="/queue/join"         element={<QueueJoin />} />
       <Route path="/queue/status/:bookingId" element={<QueueStatus />} />
