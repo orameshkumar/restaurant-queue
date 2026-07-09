@@ -2,13 +2,10 @@ import { useState, useEffect } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { collection, addDoc, serverTimestamp, doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '../../firebase/config'
+import { generateToken } from '../../utils/generateToken'
 
 const TODAY = new Date().toISOString().split('T')[0]
 const ALL_SECTIONS = ['Indoor', 'Outdoor', 'Bar & Lounge', 'Private Dining']
-
-function generateToken() {
-  return 'Q' + Math.floor(100 + Math.random() * 900)
-}
 
 export default function QueueJoin() {
   const navigate = useNavigate()
@@ -63,7 +60,7 @@ export default function QueueJoin() {
         type:            'walk-in',
         status:          'waiting',
         date:            TODAY,
-        token:           generateToken(),
+        token:           await generateToken(),
         queueSequence:   Date.now(),
         source:          'self-register',
         createdAt:       serverTimestamp(),

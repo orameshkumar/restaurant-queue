@@ -8,6 +8,7 @@ import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
 import { useEwt } from '../../hooks/useEwt';
+import { generateToken } from '../../utils/generateToken';
 import PageHeader from '../../components/PageHeader';
 import TakeOrderModal from '../../components/TakeOrderModal';
 
@@ -59,10 +60,6 @@ const TODAY = format(new Date(), 'yyyy-MM-dd');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-function generateToken() {
-  const letters = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-  return letters[Math.floor(Math.random() * letters.length)] + String(Math.floor(100 + Math.random() * 900));
-}
 
 function timeOccupied(seatedAt) {
   if (!seatedAt) return null;
@@ -180,7 +177,7 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
           type:           'walk-in',
           status:         'seated',
           date:           TODAY,
-          token:          generateToken(),
+          token:          await generateToken(),
           firedAt:        serverTimestamp(),
           queueSequence:  Date.now(),
           tableId:        resolvedTable.id,
@@ -813,7 +810,7 @@ function QueueTab() {
         type: 'walk-in',
         status: 'waiting',
         date: TODAY,
-        token: generateToken(),
+        token: await generateToken(),
         firedAt: serverTimestamp(),
         queueSequence: Date.now(),
       });
@@ -843,7 +840,7 @@ function QueueTab() {
         status: 'waiting',
         date: format(dt, 'yyyy-MM-dd'),
         reservationTime: Timestamp.fromDate(dt),
-        token: generateToken(),
+        token: await generateToken(),
         firedAt: serverTimestamp(),
         queueSequence: dt.getTime(),
       });
