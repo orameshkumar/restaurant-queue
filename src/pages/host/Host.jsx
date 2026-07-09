@@ -682,12 +682,22 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
 
   // Tables where every kitchen item is served (none still cooking/ready) and at least one was served
   const allDeliveredTableIds = useMemo(() => {
+    // Build a map of tableId → seatedAt seconds so we only count items from the current sitting
+    const seatedAtMap = {};
+    tables.forEach(t => { seatedAtMap[t.id] = t.seatedAt?.seconds ?? 0; });
+
     const activeSet = new Set(activeItems.map(i => i.tableId));
     const readySet  = new Set(readyItems.map(i => i.tableId));
-    const servedSet = new Set(servedItems.map(i => i.tableId));
-    // All delivered = has served items, zero active items, zero ready items
-    return new Set([...servedSet].filter(tid => !activeSet.has(tid) && !readySet.has(tid)));
-  }, [activeItems, readyItems, servedItems]);
+
+    // Only served items fired after the table's current seatedAt (belongs to this sitting)
+    const currentServed = new Set(
+      servedItems
+        .filter(i => (i.firedAt?.seconds ?? 0) >= (seatedAtMap[i.tableId] ?? 0) && seatedAtMap[i.tableId] > 0)
+        .map(i => i.tableId)
+    );
+
+    return new Set([...currentServed].filter(tid => !activeSet.has(tid) && !readySet.has(tid)));
+  }, [tables, activeItems, readyItems, servedItems]);
 
   const [statusFilter, setStatusFilter] = useState(initialFilter === 'occupied' ? 'occupied' : 'all');
 
