@@ -165,9 +165,44 @@ export default function Cashier() {
   const TAX_RATE     = restaurantSettings?.taxRate ?? 5;
 
   // ── data ──────────────────────────────────────────────────────────────────
-  // Show all active tables — bill_requested highlighted, others accessible too
   const { docs: allTables = [] } = useCollection('tables', 'tableNumber', 'asc');
-  const tables = allTables.filter(t => ['occupied','ordering','eating','bill_requested'].includes(t.status));
+  const activeTables = allTables.filter(t => ['occupied','ordering','eating','bill_requested'].includes(t.status));
+
+  // Deduplicate linked tables — one card per booking (linked tables share currentBookingId)
+  const tables = useMemo(() => {
+    const seen = new Set();
+    return activeTables.reduce((acc, t) => {
+      const key = t.currentBookingId ?? t.id;
+      if (seen.has(key)) return acc;
+      seen.add(key);
+      // Collect all tables sharing this booking and merge their numbers
+      const linked = activeTables.filter(x => (x.currentBookingId ?? x.id) === key);
+      const tableNumbers = linked.map(x => x.tableNumber).sort((a, b) => a - b);
+      acc.push({ ...t, tableNumbers, displayNumber: tableNumbers.join(' & ') });
+      return acc;
+    }, []);
+  }, [activeTables]);
+
+  // Live order totals per booking — so the bill list can show amounts
+  const [orderTotalsByBooking, setOrderTotalsByBooking] = useState({});
+  useEffect(() => {
+    const activeIds = activeTables.map(t => t.id);
+    if (activeIds.length === 0) { setOrderTotalsByBooking({}); return; }
+    // Firestore 'in' supports up to 30 items — sufficient for any restaurant
+    const q = query(collection(db, 'orders'), where('tableId', 'in', activeIds));
+    const unsub = onSnapshot(q, snap => {
+      const totals = {};
+      snap.docs.forEach(d => {
+        const order = d.data();
+        if (['draft', 'rejected', 'billed'].includes(order.status)) return;
+        const key = order.bookingId ?? order.tableId;
+        totals[key] = (totals[key] ?? 0) + (order.total ?? 0);
+      });
+      setOrderTotalsByBooking(totals);
+    });
+    return unsub;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTables.map(t => t.id).join(',')]);
 
   const [selectedTable, setSelectedTable] = useState(null);
 
@@ -440,7 +475,9 @@ export default function Cashier() {
               }`}
             >
               <div className="flex items-center justify-between mb-1">
-                <span className="text-lg font-bold text-gray-800">Table #{t.tableNumber}</span>
+                <span className="text-lg font-bold text-gray-800">
+                  Table #{t.displayNumber ?? t.tableNumber}
+                </span>
                 <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
                   t.status === 'bill_requested' ? 'bg-purple-100 text-purple-700' :
                   t.status === 'ordering'       ? 'bg-orange-100 text-orange-700' :
@@ -453,12 +490,16 @@ export default function Cashier() {
                 </span>
               </div>
               <p className="text-xs text-gray-500">{t.section ?? 'Main Hall'}</p>
-              <p className="text-xs text-gray-500 mt-0.5">
-                👥 {t.partySize ?? '—'} guests
-              </p>
+              <p className="text-xs text-gray-500 mt-0.5">👥 {t.partySize ?? '—'} guests</p>
               {t.assignedServerName && (
                 <p className="text-xs text-gray-500 mt-0.5">🧑‍🍳 {t.assignedServerName}</p>
               )}
+              {(() => {
+                const runningTotal = orderTotalsByBooking[t.currentBookingId ?? t.id];
+                return runningTotal > 0
+                  ? <p className="text-sm font-semibold text-indigo-700 mt-1.5">{fmt(runningTotal)}</p>
+                  : <p className="text-xs text-gray-400 mt-1.5">No orders yet</p>;
+              })()}
             </button>
           ))}
           </div>{/* end grid */}
@@ -472,7 +513,7 @@ export default function Cashier() {
             {/* Modal header */}
             <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100 flex-shrink-0">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Table #{selectedTable.tableNumber}</h2>
+                <h2 className="text-xl font-bold text-gray-800">Table #{selectedTable.displayNumber ?? selectedTable.tableNumber}</h2>
                 <p className="text-sm text-gray-500">
                   {selectedTable.section ?? 'Main Hall'} · {selectedTable.partySize ?? '—'} guests
                   {selectedTable.assignedServerName ? ` · ${selectedTable.assignedServerName}` : ''}
