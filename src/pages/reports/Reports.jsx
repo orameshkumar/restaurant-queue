@@ -63,13 +63,13 @@ export default function Reports() {
 
   // Summary metrics
   const totalRevenue = useMemo(
-    () => filteredBills.reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+    () => filteredBills.reduce((sum, b) => sum + (b.total || 0), 0),
     [filteredBills]
   );
   const totalCovers = filteredBills.length;
   const avgBillValue = totalCovers > 0 ? totalRevenue / totalCovers : 0;
   const totalVoids = useMemo(
-    () => filteredBills.filter((b) => b.voided).reduce((sum, b) => sum + (b.totalAmount || 0), 0),
+    () => filteredBills.filter((b) => b.status === 'voided').reduce((sum, b) => sum + (b.total || 0), 0),
     [filteredBills]
   );
 
@@ -78,7 +78,7 @@ export default function Reports() {
     const map = {};
     filteredBills.forEach((b) => {
       const mode = b.paymentMode || 'Unknown';
-      map[mode] = (map[mode] || 0) + (b.totalAmount || 0);
+      map[mode] = (map[mode] || 0) + (b.total || 0);
     });
     return Object.entries(map).sort((a, b) => b[1] - a[1]);
   }, [filteredBills]);
@@ -88,7 +88,8 @@ export default function Reports() {
   const filteredOrderItems = useMemo(() => {
     if (!dateRange) return [];
     return orderItems.filter((item) => {
-      const ts = item.createdAt?.toDate ? item.createdAt.toDate() : item.createdAt ? new Date(item.createdAt) : null;
+      // orderItems uses firedAt, not createdAt
+      const ts = item.firedAt?.toDate ? item.firedAt.toDate() : item.firedAt ? new Date(item.firedAt) : null;
       if (!ts) return false;
       return isWithinInterval(ts, { start: dateRange.from, end: dateRange.to });
     });
@@ -98,7 +99,7 @@ export default function Reports() {
     const map = {};
     filteredOrderItems.forEach((item) => {
       const name = item.name || 'Unknown';
-      map[name] = (map[name] || 0) + (item.quantity || 1);
+      map[name] = (map[name] || 0) + (item.qty || 1); // field is qty not quantity
     });
     return Object.entries(map)
       .sort((a, b) => b[1] - a[1])
@@ -118,7 +119,7 @@ export default function Reports() {
       const sid = b.serverId || 'Unassigned';
       if (!map[sid]) map[sid] = { count: 0, total: 0 };
       map[sid].count += 1;
-      map[sid].total += b.totalAmount || 0;
+      map[sid].total += b.total || 0;
     });
     return Object.entries(map).sort((a, b) => b[1].total - a[1].total);
   }, [filteredBills]);
@@ -137,8 +138,8 @@ export default function Reports() {
         closed ? format(closed, 'yyyy-MM-dd HH:mm:ss') : '',
         staffMap[b.serverId] || b.serverId || '',
         b.paymentMode || '',
-        (b.totalAmount || 0).toFixed(2),
-        b.voided ? 'Yes' : 'No',
+        (b.total || 0).toFixed(2),
+        b.status === 'voided' ? 'Yes' : 'No',
       ];
     });
     const csvContent = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n');
