@@ -390,11 +390,11 @@ export default function Cashier() {
     <div className="flex flex-col h-full min-h-screen bg-gray-50">
       <PageHeader title="Cashier / Billing" subtitle="Settle bills for tables that requested payment" />
 
-      <div className="flex flex-col lg:flex-row flex-1 gap-4 p-4 overflow-auto">
+      <div className="flex flex-col flex-1 gap-4 p-4 overflow-auto">
         {/* ── LEFT: Bill Queue ─────────────────────────────────────────── */}
-        <aside className="w-full lg:w-72 flex-shrink-0 flex flex-col gap-3 overflow-y-auto">
+        <aside className="w-full flex flex-col gap-3">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide px-1">
-            Bill Queue ({tables?.length ?? 0})
+            Bill Queue ({tables?.length ?? 0}) — click a table to open bill
           </h2>
 
           {!tables?.length && (
@@ -404,6 +404,7 @@ export default function Cashier() {
             </div>
           )}
 
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
           {tables?.map((t) => (
             <button
               key={t.id}
@@ -442,41 +443,34 @@ export default function Cashier() {
               )}
             </button>
           ))}
+          </div>{/* end grid */}
         </aside>
 
-        {/* ── RIGHT: Bill Detail ───────────────────────────────────────── */}
-        <main className="flex-1 overflow-y-auto">
-          {!selectedTable ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400">
-              <span className="text-6xl mb-3">💳</span>
-              <p className="text-lg font-medium">Select a table to view bill</p>
-              <p className="text-sm mt-1">Click any entry in the queue on the left</p>
-            </div>
-          ) : (
-            <div className="max-w-2xl mx-auto space-y-4">
-              {/* Table header */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h2 className="text-xl font-bold text-gray-800">
-                      Table #{selectedTable.tableNumber}
-                    </h2>
-                    <p className="text-sm text-gray-500">
-                      {selectedTable.section ?? 'Main Hall'} · {selectedTable.partySize ?? '—'} guests
-                      {selectedTable.assignedServerName
-                        ? ` · Server: ${selectedTable.assignedServerName}`
-                        : ''}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setSelectedTable(null)}
-                    className="text-gray-400 hover:text-gray-600 text-sm"
-                  >
-                    ✕ Deselect
-                  </button>
-                </div>
-              </div>
+      {/* ── Bill Detail Modal ────────────────────────────────────────────── */}
+      {selectedTable && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setSelectedTable(null)}>
+          <div className="bg-gray-50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
 
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-gray-100 flex-shrink-0">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Table #{selectedTable.tableNumber}</h2>
+                <p className="text-sm text-gray-500">
+                  {selectedTable.section ?? 'Main Hall'} · {selectedTable.partySize ?? '—'} guests
+                  {selectedTable.assignedServerName ? ` · ${selectedTable.assignedServerName}` : ''}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedTable(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 transition flex-shrink-0"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto p-5">
+            <div className="space-y-4">
               {/* Order rounds */}
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
                 <h3 className="font-semibold text-gray-700 mb-3">
@@ -693,8 +687,10 @@ export default function Cashier() {
                 </div>
               )}
             </div>
-          )}
-        </main>
+            </div>{/* end scrollable body */}
+          </div>{/* end modal panel */}
+        </div>
+      )}{/* end modal overlay */}
       </div>
 
       {/* ── Hidden print layout (screen-hidden, print-visible) ─────────── */}
