@@ -176,17 +176,21 @@ export default function Cashier() {
 
   useEffect(() => {
     if (!selectedTable) { setOrders([]); return; }
-    // Filter by tableId only — avoid not-in+equality composite index requirement
     const q = query(collection(db, 'orders'), where('tableId', '==', selectedTable.id));
     const unsub = onSnapshot(q, snap => {
       const docs = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter(d => !['draft', 'rejected', 'billed'].includes(d.status))
+        .filter(d => {
+          if (['draft', 'rejected', 'billed'].includes(d.status)) return false;
+          // Only show orders belonging to the current sitting
+          if (selectedTable.currentBookingId && d.bookingId && d.bookingId !== selectedTable.currentBookingId) return false;
+          return true;
+        })
         .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
       setOrders(docs);
     });
     return unsub;
-  }, [selectedTable?.id]);
+  }, [selectedTable?.id, selectedTable?.currentBookingId]);
 
   // ── collapsed state for round sections ───────────────────────────────────
   const [collapsedRounds, setCollapsedRounds] = useState({});
