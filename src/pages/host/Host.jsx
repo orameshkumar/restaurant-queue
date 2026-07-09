@@ -621,12 +621,6 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
               >
                 ↩ Return to Queue
               </button>
-              <button
-                onClick={() => markStatus('cleaning')}
-                className="text-xs px-3 py-1.5 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition font-medium"
-              >
-                Mark Cleaning
-              </button>
             </>
           )}
           {table.status === 'cleaning' && (
