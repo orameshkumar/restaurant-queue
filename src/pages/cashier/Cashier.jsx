@@ -227,6 +227,24 @@ export default function Cashier() {
     return unsub;
   }, [selectedTable?.id, selectedTable?.currentBookingId]);
 
+  // ── live orderItems for delivery check ───────────────────────────────────
+  const [unservedItems, setUnservedItems] = useState([]);
+  useEffect(() => {
+    if (!selectedTable) { setUnservedItems([]); return; }
+    const q = query(collection(db, 'orderItems'), where('tableId', '==', selectedTable.id));
+    const unsub = onSnapshot(q, snap => {
+      const items = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(d => {
+          if (d.status === 'served') return false;
+          // Scope to current booking via orderId matching loaded orders
+          return true;
+        });
+      setUnservedItems(items);
+    });
+    return unsub;
+  }, [selectedTable?.id]);
+
   // ── collapsed state for round sections ───────────────────────────────────
   const [collapsedRounds, setCollapsedRounds] = useState({});
   function toggleRound(idx) {
@@ -727,15 +745,23 @@ export default function Cashier() {
                   ✂️ Split Bill
                 </button>
 
+                {unservedItems.length > 0 && (
+                  <div className="ml-auto flex items-center gap-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                    <span>⚠️</span>
+                    <span>
+                      <span className="font-semibold">{unservedItems.length} item{unservedItems.length > 1 ? 's' : ''} not yet served</span>
+                      {' '}— {unservedItems.slice(0, 2).map(i => i.name).join(', ')}{unservedItems.length > 2 ? ` +${unservedItems.length - 2} more` : ''}
+                    </span>
+                  </div>
+                )}
                 <button
-                  disabled={orders.length === 0 || settling}
+                  disabled={orders.length === 0 || settling || unservedItems.length > 0}
                   onClick={handleSettleBill}
-                  className="ml-auto px-6 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 flex items-center gap-2"
+                  title={unservedItems.length > 0 ? 'All items must be served before settling' : ''}
+                  className="ml-auto px-6 py-2 rounded-xl text-sm font-semibold bg-green-600 text-white hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-2"
                 >
                   {settling ? (
-                    <>
-                      <span className="animate-spin">⏳</span> Processing…
-                    </>
+                    <><span className="animate-spin">⏳</span> Processing…</>
                   ) : (
                     <>✅ Settle Bill · {fmt(total)}</>
                   )}
