@@ -125,6 +125,21 @@ export default function Tables() {
     }
   };
 
+  // ── block / unblock ──────────────────────────────────────────────
+  const handleToggleBlock = async (table) => {
+    const newStatus = table.status === 'blocked' ? 'available' : 'blocked';
+    try {
+      await updateDoc(doc(db, 'tables', table.id), {
+        status: newStatus,
+        updatedAt: serverTimestamp(),
+      });
+      toast.success(`Table ${table.tableNumber} ${newStatus === 'blocked' ? 'blocked' : 'unblocked'}.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to update table status.');
+    }
+  };
+
   // ── delete ────────────────────────────────────────────────────────
   const handleDelete = async (table) => {
     if (!window.confirm(`Delete Table ${table.tableNumber}? This cannot be undone.`)) return;
@@ -246,7 +261,18 @@ export default function Tables() {
                   {table.notes}
                 </p>
               ) : null}
-              <div className="flex gap-1 mt-auto pt-1">
+              <div className="flex gap-1 mt-auto pt-1 flex-wrap">
+                <button
+                  onClick={() => handleToggleBlock(table)}
+                  disabled={table.status === 'occupied'}
+                  className={`flex-1 text-xs py-1 rounded border transition disabled:opacity-40 disabled:cursor-not-allowed ${
+                    table.status === 'blocked'
+                      ? 'bg-green-50 hover:bg-green-100 border-green-300 text-green-700'
+                      : 'bg-red-50 hover:bg-red-100 border-red-200 text-red-600'
+                  }`}
+                >
+                  {table.status === 'blocked' ? 'Unblock' : 'Block'}
+                </button>
                 <button
                   onClick={() => openEdit(table)}
                   className="flex-1 text-xs py-1 rounded bg-white/70 hover:bg-white border border-gray-200 text-gray-700 transition"
@@ -257,7 +283,7 @@ export default function Tables() {
                   onClick={() => handleDelete(table)}
                   className="flex-1 text-xs py-1 rounded bg-white/70 hover:bg-red-50 border border-gray-200 text-red-600 transition"
                 >
-                  Delete
+                  Del
                 </button>
               </div>
             </div>
