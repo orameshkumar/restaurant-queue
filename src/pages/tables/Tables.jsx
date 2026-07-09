@@ -264,7 +264,7 @@ export default function Tables() {
               <div className="flex gap-1 mt-auto pt-1 flex-wrap">
                 <button
                   onClick={() => handleToggleBlock(table)}
-                  disabled={table.status === 'occupied'}
+                  disabled={['occupied','ordering','eating','bill_requested','reserved','cleaning'].includes(table.status)}
                   className={`flex-1 text-xs py-1 rounded border transition disabled:opacity-40 disabled:cursor-not-allowed ${
                     table.status === 'blocked'
                       ? 'bg-green-50 hover:bg-green-100 border-green-300 text-green-700'

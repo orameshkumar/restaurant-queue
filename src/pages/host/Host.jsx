@@ -599,13 +599,17 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
               </button>
               <button
                 onClick={showQR}
-                className="text-xs px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium"
+                disabled={!table.currentBookingId}
+                className="text-xs px-3 py-1.5 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition font-medium disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 📱 Show QR
               </button>
               {table.status !== 'bill_requested' && (
                 <button
-                  onClick={() => markStatus('bill_requested')}
+                  onClick={() => {
+                    if (!allDelivered && !window.confirm('Not all items are delivered. Send to billing anyway?')) return;
+                    markStatus('bill_requested');
+                  }}
                   className={`text-xs px-3 py-1.5 rounded-lg text-white transition font-medium ${
                     allDelivered
                       ? 'bg-green-600 hover:bg-green-700 animate-pulse'
@@ -625,7 +629,7 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
           )}
           {table.status === 'cleaning' && (
             <button
-              onClick={() => markStatus('available')}
+              onClick={() => { if (window.confirm(`Table ${table.tableNumber} is clean and ready for guests?`)) markStatus('available'); }}
               className="text-xs px-3 py-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition font-medium"
             >
               Mark Available

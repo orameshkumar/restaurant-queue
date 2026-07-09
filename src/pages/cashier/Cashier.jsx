@@ -340,6 +340,10 @@ export default function Cashier() {
 
   async function handleSettleBill() {
     if (!selectedTable) return;
+    if (unservedItems.length > 0) {
+      toast.error(`${unservedItems.length} item(s) not yet served. Cannot settle.`);
+      return;
+    }
     setSettling(true);
     try {
       // 1. Create consolidated bill document
