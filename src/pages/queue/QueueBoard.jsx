@@ -153,12 +153,18 @@ export default function QueueBoard() {
                   <p className="text-xs text-gray-400">👥 {b.partySize}{b.tablePreference && b.tablePreference !== 'Any' ? ` · ${b.tablePreference}` : ''}</p>
                 </div>
 
-                {/* EWT */}
+                {/* EWT — personsAhead = sum of party sizes of all bookings before this one */}
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-gray-500">Est. wait</p>
-                  <p className={`text-xl font-bold ${idx === 0 ? 'text-amber-400' : 'text-gray-300'}`}>
-                    {idx === 0 ? 'Ready!' : calcEwt(b.tablePreference ?? 'Any', idx) > 0 ? `~${calcEwt(b.tablePreference ?? 'Any', idx)}m` : 'Soon'}
-                  </p>
+                  {(() => {
+                    const personsAhead = waiting.slice(0, idx).reduce((s, w) => s + (w.partySize || 2), 0)
+                    const ewt = calcEwt(b.tablePreference ?? 'Any', personsAhead)
+                    return (
+                      <p className={`text-xl font-bold ${idx === 0 ? 'text-amber-400' : 'text-gray-300'}`}>
+                        {ewt === 0 ? (idx === 0 ? 'Ready!' : 'Soon') : `~${ewt}m`}
+                      </p>
+                    )
+                  })()}
                 </div>
               </div>
             ))}

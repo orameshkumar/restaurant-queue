@@ -10,7 +10,8 @@ export default function QueueStatus() {
   const { bookingId } = useParams()
   const { calcEwt } = useEwt()
   const [booking, setBooking]     = useState(null)
-  const [position, setPosition]   = useState(null)
+  const [position, setPosition]       = useState(null)
+  const [personsAhead, setPersonsAhead] = useState(0)
   const [loading, setLoading]     = useState(true)
   const [notFound, setNotFound]   = useState(false)
   const [seated, setSeated]       = useState(false)
@@ -56,6 +57,7 @@ export default function QueueStatus() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(b => b.id !== bookingId && (b.queueSequence ?? 0) < (booking.queueSequence ?? 0))
       setPosition(ahead.length + 1)
+      setPersonsAhead(ahead.reduce((s, b) => s + (b.partySize || 2), 0))
     }
     computePosition()
 
@@ -138,7 +140,7 @@ export default function QueueStatus() {
     </div>
   )
 
-  const ewt = position != null ? calcEwt(booking?.tablePreference ?? 'Any', position - 1) : null
+  const ewt = position != null ? calcEwt(booking?.tablePreference ?? 'Any', personsAhead) : null
 
   // ── Live waiting status ──────────────────────────────────────────────────
   return (

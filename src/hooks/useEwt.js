@@ -48,6 +48,8 @@ export function useEwt() {
     return !t.status || t.status === 'available'
   }
 
+  // Average remaining time across all in-use tables that have a seatedAt timestamp.
+  // Falls back to the full configured turn time if none have timestamps yet.
   function avgRemainingForTables(inUseTables, ewt) {
     const active = inUseTables.filter(t => t.seatedAt)
     if (active.length === 0) return ewt
@@ -59,26 +61,43 @@ export function useEwt() {
     return remainings.reduce((a, b) => a + b, 0) / remainings.length
   }
 
-  function calcEwt(section, partiesAhead) {
-    // Tables not loaded yet — don't show a false estimate
+  /**
+   * calcEwt(section, personsAhead)
+   *
+   * personsAhead — total number of PEOPLE (not parties) waiting ahead of this guest.
+   *
+   * Logic:
+   *   freeCapacity  = sum of capacities of available tables
+   *   cycleCapacity = sum of capacities of in-use tables (freed each turn)
+   *   avgRemaining  = average (configuredEwt − minutesSinceSeated) across in-use tables
+   *
+   *   If personsAhead fits in freeCapacity → immediate (0)
+   *   Otherwise figure out how many full cycles are needed for the overflow:
+   *     cycles = ceil((personsAhead − freeCapacity) / cycleCapacity)
+   *     EWT    = avgRemaining + (cycles − 1) × configuredEwt
+   */
+  function calcEwt(section, personsAhead) {
     if (loading || tables.length === 0) return 0
 
-    if (section === 'Any') {
-      const minEwt = Math.min(...SECTIONS.map(s => sectionEwt[s] ?? DEFAULT_EWT))
-      const freeTables = tables.filter(isFree)
-      const inUseTables = tables.filter(t => IN_USE.includes(t.status))
-      if (partiesAhead < freeTables.length) return 0
-      const avg = avgRemainingForTables(inUseTables, minEwt)
-      return Math.ceil((partiesAhead - freeTables.length) * avg)
-    }
+    const configuredEwt = section === 'Any'
+      ? Math.min(...SECTIONS.map(s => sectionEwt[s] ?? DEFAULT_EWT))
+      : (sectionEwt[section] ?? DEFAULT_EWT)
 
-    const configuredEwt = sectionEwt[section] ?? DEFAULT_EWT
-    const sectionTables = tables.filter(t => t.section === section)
-    const freeTables = sectionTables.filter(isFree)
-    const inUseTables = sectionTables.filter(t => IN_USE.includes(t.status))
-    if (partiesAhead < freeTables.length) return 0
-    const avg = avgRemainingForTables(inUseTables, configuredEwt)
-    return Math.ceil((partiesAhead - freeTables.length) * avg)
+    const pool       = section === 'Any' ? tables : tables.filter(t => t.section === section)
+    const freeTables = pool.filter(isFree)
+    const inUseTables = pool.filter(t => IN_USE.includes(t.status))
+
+    const freeCapacity  = freeTables.reduce((s, t) => s + (t.capacity || 4), 0)
+    const cycleCapacity = inUseTables.reduce((s, t) => s + (t.capacity || 4), 0)
+
+    if (personsAhead <= freeCapacity) return 0
+    if (cycleCapacity === 0) return 0
+
+    const overflow     = personsAhead - freeCapacity
+    const cyclesNeeded = Math.ceil(overflow / cycleCapacity)
+    const avgRemaining = avgRemainingForTables(inUseTables, configuredEwt)
+
+    return Math.ceil(avgRemaining + (cyclesNeeded - 1) * configuredEwt)
   }
 
   // Sections with at least one non-blocked table
