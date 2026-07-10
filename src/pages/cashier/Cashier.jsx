@@ -211,13 +211,18 @@ export default function Cashier() {
   }, [activeTables.map(t => t.id).join(',')]);
 
   const [selectedTable, setSelectedTable] = useState(null);
+  // Always read linkedTableId and currentBookingId from live Firestore data
+  const liveSelectedTable = useMemo(
+    () => tables.find(t => t.id === selectedTable?.id) ?? selectedTable,
+    [tables, selectedTable?.id]
+  );
 
   // ── multi-round orders for the selected table (+ linked table) ──────────
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
-    if (!selectedTable) { setOrders([]); return; }
-    const tableIds = [selectedTable.id, selectedTable.linkedTableId].filter(Boolean);
+    if (!liveSelectedTable) { setOrders([]); return; }
+    const tableIds = [liveSelectedTable.id, liveSelectedTable.linkedTableId].filter(Boolean);
     const q = query(collection(db, 'orders'), where('tableId', 'in', tableIds));
     const unsub = onSnapshot(q, snap => {
       const docs = snap.docs
@@ -225,33 +230,33 @@ export default function Cashier() {
         .filter(d => {
           if (['draft', 'rejected', 'billed'].includes(d.status)) return false;
           // Only show orders belonging to the current sitting
-          if (selectedTable.currentBookingId && d.bookingId && d.bookingId !== selectedTable.currentBookingId) return false;
+          if (liveSelectedTable.currentBookingId && d.bookingId && d.bookingId !== liveSelectedTable.currentBookingId) return false;
           return true;
         })
         .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
       setOrders(docs);
     });
     return unsub;
-  }, [selectedTable?.id, selectedTable?.linkedTableId, selectedTable?.currentBookingId]);
+  }, [liveSelectedTable?.id, liveSelectedTable?.linkedTableId, liveSelectedTable?.currentBookingId]);
 
   // ── live orderItems for delivery check (+ linked table) ─────────────────
   const [unservedItems, setUnservedItems] = useState([]);
   useEffect(() => {
-    if (!selectedTable) { setUnservedItems([]); return; }
-    const tableIds = [selectedTable.id, selectedTable.linkedTableId].filter(Boolean);
+    if (!liveSelectedTable) { setUnservedItems([]); return; }
+    const tableIds = [liveSelectedTable.id, liveSelectedTable.linkedTableId].filter(Boolean);
     const q = query(collection(db, 'orderItems'), where('tableId', 'in', tableIds));
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(d => {
           if (d.status === 'served') return false;
-          if (selectedTable.currentBookingId && d.bookingId && d.bookingId !== selectedTable.currentBookingId) return false;
+          if (liveSelectedTable.currentBookingId && d.bookingId && d.bookingId !== liveSelectedTable.currentBookingId) return false;
           return true;
         });
       setUnservedItems(items);
     });
     return unsub;
-  }, [selectedTable?.id, selectedTable?.linkedTableId, selectedTable?.currentBookingId]);
+  }, [liveSelectedTable?.id, liveSelectedTable?.linkedTableId, liveSelectedTable?.currentBookingId]);
 
   // ── collapsed state for round sections ───────────────────────────────────
   const [collapsedRounds, setCollapsedRounds] = useState({});
@@ -354,12 +359,14 @@ export default function Cashier() {
     }
     setSettling(true);
     try {
+      const tbl = liveSelectedTable;
+
       // 1. Create consolidated bill document
       const billRef = await addDoc(collection(db, 'bills'), {
-        tableId: selectedTable.id,
-        tableNumber: selectedTable.tableNumber,
-        linkedTableId: selectedTable.linkedTableId ?? null,
-        bookingId: selectedTable.currentBookingId ?? null,
+        tableId: tbl.id,
+        tableNumber: tbl.tableNumber,
+        linkedTableId: tbl.linkedTableId ?? null,
+        bookingId: tbl.currentBookingId ?? null,
         items: consolidatedItems,
         rounds: orders.length,
         subtotal,
@@ -374,8 +381,8 @@ export default function Cashier() {
         paymentMode,
         closedAt: serverTimestamp(),
         closedDate: todayString(),
-        serverId:     selectedTable.assignedServerId   ?? null,
-        serverName:   selectedTable.assignedServerName ?? null,
+        serverId:     tbl.assignedServerId   ?? null,
+        serverName:   tbl.assignedServerName ?? null,
         cashierId:    user?.uid    ?? null,
         cashierName:  profile?.name ?? null,
         status: 'closed',
@@ -393,7 +400,7 @@ export default function Cashier() {
       );
 
       // 3. Update table
-      await updateDoc(doc(db, 'tables', selectedTable.id), {
+      await updateDoc(doc(db, 'tables', tbl.id), {
         status: 'cleaning',
         currentBookingId: null,
         lastBillId: billRef.id,
@@ -401,8 +408,8 @@ export default function Cashier() {
       });
 
       // 3b. Free linked table if any
-      if (selectedTable.linkedTableId) {
-        await updateDoc(doc(db, 'tables', selectedTable.linkedTableId), {
+      if (tbl.linkedTableId) {
+        await updateDoc(doc(db, 'tables', tbl.linkedTableId), {
           status: 'cleaning',
           currentBookingId: null,
           linkedTableId: null,
