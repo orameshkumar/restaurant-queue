@@ -123,7 +123,15 @@ export default function QueueBoard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {waiting.map((b, idx) => (
+            {/* Precompute cumulative persons-ahead once — O(n) */}
+            {(() => {
+              let cum = 0;
+              const ewtData = waiting.map(b => {
+                const ewt = calcEwt(b.tablePreference ?? 'Any', cum);
+                cum += b.partySize || 2;
+                return ewt;
+              });
+              return waiting.map((b, idx) => (
               <div
                 key={b.id}
                 className={`flex items-center gap-4 rounded-2xl px-5 py-4 border ${
@@ -153,12 +161,11 @@ export default function QueueBoard() {
                   <p className="text-xs text-gray-400">👥 {b.partySize}{b.tablePreference && b.tablePreference !== 'Any' ? ` · ${b.tablePreference}` : ''}</p>
                 </div>
 
-                {/* EWT — personsAhead = sum of party sizes of all bookings before this one */}
+                {/* EWT — precomputed above */}
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-gray-500">Est. wait</p>
                   {(() => {
-                    const personsAhead = waiting.slice(0, idx).reduce((s, w) => s + (w.partySize || 2), 0)
-                    const ewt = calcEwt(b.tablePreference ?? 'Any', personsAhead)
+                    const ewt = ewtData[idx];
                     return (
                       <p className={`text-xl font-bold ${idx === 0 ? 'text-amber-400' : 'text-gray-300'}`}>
                         {ewt === 0 ? (idx === 0 ? 'Ready!' : 'Soon') : `~${ewt}m`}
@@ -167,7 +174,8 @@ export default function QueueBoard() {
                   })()}
                 </div>
               </div>
-            ))}
+            ));
+            })()}
           </div>
         )}
       </div>

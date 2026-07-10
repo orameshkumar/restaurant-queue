@@ -842,6 +842,9 @@ function QueueTab() {
 
   const [showReservationForm, setShowReservationForm] = useState(false);
   const [assignTarget, setAssignTarget] = useState(null);
+  const [queueSearch, setQueueSearch] = useState('');
+  const [queuePage, setQueuePage]     = useState(0);
+  const QUEUE_PAGE_SIZE = 20;
   const [qrInfo, setQrInfo] = useState(null);
   const [showJoinQR, setShowJoinQR] = useState(false);
   const joinUrl = `${window.location.origin}${import.meta.env.BASE_URL}queue/join`;
@@ -866,6 +869,35 @@ function QueueTab() {
   }, [allBookings]);
 
   const waitingBookings = useMemo(() => todayBookings.filter(b => b.status === 'waiting'), [todayBookings]);
+
+  // Precompute EWT and position for every waiting booking once — O(n) instead of O(n²) in render
+  const waitingEwtMap = useMemo(() => {
+    const map = {}; // bookingId → { position, personsAhead, ewt }
+    let personsAhead = 0;
+    waitingBookings.forEach((b, idx) => {
+      const mins = calcEwt(b.tablePreference ?? 'Any', personsAhead);
+      map[b.id] = {
+        position: idx,
+        personsAhead,
+        ewt: mins > 0 ? `~${mins} min` : mins === 0 ? 'Ready soon' : '—',
+      };
+      personsAhead += b.partySize || 1;
+    });
+    return map;
+  }, [waitingBookings, calcEwt]);
+
+  const filteredBookings = useMemo(() => {
+    const q = queueSearch.trim().toLowerCase();
+    if (!q) return todayBookings;
+    return todayBookings.filter(b =>
+      b.guestName?.toLowerCase().includes(q) ||
+      b.mobile?.includes(q) ||
+      b.token?.toLowerCase().includes(q)
+    );
+  }, [todayBookings, queueSearch]);
+
+  const pagedBookings  = useMemo(() => filteredBookings.slice(queuePage * QUEUE_PAGE_SIZE, (queuePage + 1) * QUEUE_PAGE_SIZE), [filteredBookings, queuePage]);
+  const totalPages     = Math.max(1, Math.ceil(filteredBookings.length / QUEUE_PAGE_SIZE));
 
   async function addWalkIn(e) {
     e.preventDefault();
@@ -1193,14 +1225,23 @@ function QueueTab() {
 
       {/* Queue Table */}
       <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-wrap items-center gap-3 justify-between">
           <div>
             <h3 className="font-semibold text-gray-800">Today's Queue</h3>
             <p className="text-xs text-gray-400 mt-0.5">{format(new Date(), 'EEEE, MMMM d, yyyy')}</p>
           </div>
-          <span className="text-sm text-gray-500">
-            {waitingBookings.length} waiting
-          </span>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              placeholder="Search name / phone / token…"
+              value={queueSearch}
+              onChange={e => { setQueueSearch(e.target.value); setQueuePage(0); }}
+              className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm w-52 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <span className="text-sm text-gray-500 whitespace-nowrap">
+              {waitingBookings.length} waiting · {todayBookings.length} total
+            </span>
+          </div>
         </div>
 
         {loading ? (
@@ -1223,13 +1264,9 @@ function QueueTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {todayBookings.map((booking, idx) => {
-                  const waitingPosition = waitingBookings.findIndex(b => b.id === booking.id);
-                  const personsAhead = waitingPosition >= 0
-                    ? waitingBookings.slice(0, waitingPosition).reduce((s, b) => s + (b.partySize || 1), 0)
-                    : -1;
-                  const ewtMins = personsAhead >= 0 ? calcEwt(booking.tablePreference ?? 'Any', personsAhead) : -1;
-                  const ewt = ewtMins > 0 ? `~${ewtMins} min` : ewtMins === 0 ? 'Ready soon' : '—';
+                {pagedBookings.map((booking, idx) => {
+                  const ewtInfo = waitingEwtMap[booking.id];
+                  const ewt = ewtInfo?.ewt ?? '—';
 
                   return (
                   <React.Fragment key={booking.id}>
@@ -1296,6 +1333,32 @@ function QueueTab() {
                 })}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="px-5 py-3 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+            <span>
+              Showing {queuePage * QUEUE_PAGE_SIZE + 1}–{Math.min((queuePage + 1) * QUEUE_PAGE_SIZE, filteredBookings.length)} of {filteredBookings.length}
+            </span>
+            <div className="flex gap-2">
+              <button
+                disabled={queuePage === 0}
+                onClick={() => setQueuePage(p => p - 1)}
+                className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+              >
+                ← Prev
+              </button>
+              <span className="px-3 py-1 font-medium">{queuePage + 1} / {totalPages}</span>
+              <button
+                disabled={queuePage >= totalPages - 1}
+                onClick={() => setQueuePage(p => p + 1)}
+                className="px-3 py-1 rounded-lg border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+              >
+                Next →
+              </button>
+            </div>
           </div>
         )}
       </div>
