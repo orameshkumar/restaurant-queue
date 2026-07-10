@@ -295,6 +295,7 @@ function OrderPanel({ table, onRequestBill, onAddItems }) {
   const ready      = orderItems.filter((i) => i.status === 'ready');
   const inProgress = orderItems.filter((i) => ['placed', 'in-kitchen', 'in-preparation'].includes(i.status));
   const served     = orderItems.filter((i) => i.status === 'served');
+  const allServed  = orderItems.length > 0 && ready.length === 0 && inProgress.length === 0;
 
   async function handleServe(item) {
     try {
@@ -344,7 +345,13 @@ function OrderPanel({ table, onRequestBill, onAddItems }) {
           {table.status !== 'bill_requested' && (
             <button
               onClick={() => onRequestBill(table)}
-              className="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold"
+              disabled={!allServed}
+              title={!allServed ? 'All items must be served before requesting bill' : ''}
+              className={`px-3 py-1.5 rounded-lg text-white text-sm font-semibold transition ${
+                allServed
+                  ? 'bg-green-600 hover:bg-green-700'
+                  : 'bg-gray-300 cursor-not-allowed'
+              }`}
             >💳 Request Bill</button>
           )}
           <button
