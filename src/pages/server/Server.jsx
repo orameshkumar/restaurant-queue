@@ -575,12 +575,26 @@ export default function Server() {
     }
   }
 
+  // ── DEBUG PANEL (remove once issue resolved) ─────────────────────────────
+  const debugTables = allTables.filter(t => ['occupied','ordering','eating','bill_requested','cleaning'].includes(t.status));
+
   return (
     <div className="min-h-screen bg-gray-50">
       <PageHeader
         title="My Tables"
         subtitle={`Welcome, ${profile?.name ?? 'Server'}`}
       />
+
+      {/* DEBUG BAND — remove after diagnosis */}
+      <div className="bg-yellow-50 border-b border-yellow-300 px-4 py-2 text-xs font-mono text-yellow-900 space-y-1">
+        <div><strong>DEBUG</strong> — profile.id: <span className="text-blue-700">{profile?.id ?? 'null'}</span> · myTables count: <span className="text-blue-700">{myTables.length}</span></div>
+        <div>Active tables in Firestore: {debugTables.length === 0 ? 'none' : debugTables.map(t =>
+          <span key={t.id} className="inline-block mr-3">
+            T{t.tableNumber}[{t.status}] server=<span className={t.assignedServerId === profile?.id ? 'text-green-700 font-bold' : 'text-red-700'}>{t.assignedServerId ?? 'none'}</span>
+            {t.linkedTableId ? ` 🔗T${allTables.find(x=>x.id===t.linkedTableId)?.tableNumber??'?'}` : ''}
+          </span>
+        )}</div>
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
