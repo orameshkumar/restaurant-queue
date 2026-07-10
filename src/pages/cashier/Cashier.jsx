@@ -212,12 +212,13 @@ export default function Cashier() {
 
   const [selectedTable, setSelectedTable] = useState(null);
 
-  // ── multi-round orders for the selected table ─────────────────────────────
+  // ── multi-round orders for the selected table (+ linked table) ──────────
   const [orders, setOrders] = useState([]);
 
   useEffect(() => {
     if (!selectedTable) { setOrders([]); return; }
-    const q = query(collection(db, 'orders'), where('tableId', '==', selectedTable.id));
+    const tableIds = [selectedTable.id, selectedTable.linkedTableId].filter(Boolean);
+    const q = query(collection(db, 'orders'), where('tableId', 'in', tableIds));
     const unsub = onSnapshot(q, snap => {
       const docs = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
@@ -231,25 +232,26 @@ export default function Cashier() {
       setOrders(docs);
     });
     return unsub;
-  }, [selectedTable?.id, selectedTable?.currentBookingId]);
+  }, [selectedTable?.id, selectedTable?.linkedTableId, selectedTable?.currentBookingId]);
 
-  // ── live orderItems for delivery check ───────────────────────────────────
+  // ── live orderItems for delivery check (+ linked table) ─────────────────
   const [unservedItems, setUnservedItems] = useState([]);
   useEffect(() => {
     if (!selectedTable) { setUnservedItems([]); return; }
-    const q = query(collection(db, 'orderItems'), where('tableId', '==', selectedTable.id));
+    const tableIds = [selectedTable.id, selectedTable.linkedTableId].filter(Boolean);
+    const q = query(collection(db, 'orderItems'), where('tableId', 'in', tableIds));
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter(d => {
           if (d.status === 'served') return false;
-          // Scope to current booking via orderId matching loaded orders
+          if (selectedTable.currentBookingId && d.bookingId && d.bookingId !== selectedTable.currentBookingId) return false;
           return true;
         });
       setUnservedItems(items);
     });
     return unsub;
-  }, [selectedTable?.id]);
+  }, [selectedTable?.id, selectedTable?.linkedTableId, selectedTable?.currentBookingId]);
 
   // ── collapsed state for round sections ───────────────────────────────────
   const [collapsedRounds, setCollapsedRounds] = useState({});
@@ -356,6 +358,7 @@ export default function Cashier() {
       const billRef = await addDoc(collection(db, 'bills'), {
         tableId: selectedTable.id,
         tableNumber: selectedTable.tableNumber,
+        linkedTableId: selectedTable.linkedTableId ?? null,
         bookingId: selectedTable.currentBookingId ?? null,
         items: consolidatedItems,
         rounds: orders.length,
