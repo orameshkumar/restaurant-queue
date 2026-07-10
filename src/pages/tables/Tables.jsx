@@ -6,6 +6,90 @@ import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
 import PageHeader from '../../components/PageHeader';
 
+// ─── Assign Server Modal ──────────────────────────────────────────────────────
+
+function AssignServerModal({ table, onClose }) {
+  const { docs: servers = [] } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']]);
+  const [selectedId, setSelectedId] = useState(table.assignedServerId ?? '');
+  const [saving, setSaving] = useState(false);
+
+  async function handleSave() {
+    setSaving(true);
+    try {
+      if (selectedId) {
+        const server = servers.find((s) => s.id === selectedId);
+        await updateDoc(doc(db, 'tables', table.id), {
+          assignedServerId: selectedId,
+          assignedServerName: server?.name ?? null,
+          updatedAt: serverTimestamp(),
+        });
+        toast.success(`Table ${table.tableNumber} assigned to ${server?.name ?? 'server'}.`);
+      } else {
+        await updateDoc(doc(db, 'tables', table.id), {
+          assignedServerId: null,
+          assignedServerName: null,
+          updatedAt: serverTimestamp(),
+        });
+        toast.success(`Server unassigned from Table ${table.tableNumber}.`);
+      }
+      onClose();
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to assign server.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="text-lg font-semibold text-gray-800">
+            Assign Server — Table {table.tableNumber}
+          </h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          <label htmlFor="assign-server-select" className="block text-sm font-medium text-gray-700">
+            Server
+          </label>
+          <select
+            id="assign-server-select"
+            name="assignServer"
+            value={selectedId}
+            onChange={(e) => setSelectedId(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
+          >
+            <option value="">— None (unassign) —</option>
+            {servers.map((s) => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
+          {servers.length === 0 && (
+            <p className="text-xs text-gray-400">No staff with role "server" found.</p>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t flex justify-end gap-3">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50 transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="px-4 py-2 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 disabled:opacity-50 transition"
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SECTIONS = ['Indoor', 'Outdoor', 'Bar & Lounge', 'Private Dining'];
 
 const DEFAULT_TABLES = [
@@ -54,6 +138,7 @@ export default function Tables() {
   const [editingTable, setEditingTable] = useState(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [assignServerTable, setAssignServerTable] = useState(null);
 
   // ── section filter tabs ──────────────────────────────────────────
   const sectionTabs = ['All', ...SECTIONS];
@@ -261,7 +346,20 @@ export default function Tables() {
                   {table.notes}
                 </p>
               ) : null}
+              {table.assignedServerName ? (
+                <p className="text-xs text-blue-600 truncate" title={table.assignedServerName}>
+                  🧑‍🍳 {table.assignedServerName}
+                </p>
+              ) : (
+                <p className="text-xs text-gray-400">No server</p>
+              )}
               <div className="flex gap-1 mt-auto pt-1 flex-wrap">
+                <button
+                  onClick={() => setAssignServerTable(table)}
+                  className="w-full text-xs py-1 rounded bg-blue-50 hover:bg-blue-100 border border-blue-200 text-blue-700 transition mb-1"
+                >
+                  👤 Assign Server
+                </button>
                 <button
                   onClick={() => handleToggleBlock(table)}
                   disabled={['occupied','ordering','eating','bill_requested','reserved','cleaning'].includes(table.status)}
@@ -289,6 +387,14 @@ export default function Tables() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* Assign Server Modal */}
+      {assignServerTable && (
+        <AssignServerModal
+          table={assignServerTable}
+          onClose={() => setAssignServerTable(null)}
+        />
       )}
 
       {/* Add / Edit Modal */}
