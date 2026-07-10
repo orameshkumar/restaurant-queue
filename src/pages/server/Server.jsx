@@ -305,26 +305,22 @@ function BulkHandoffModal({ tables, onClose }) {
 
 // ─── Order Panel ─────────────────────────────────────────────────────────────
 
-function OrderPanel({ table, onRequestBill, onAddItems, onShowQR }) {
-  // Fetch without orderBy to avoid composite index requirement — sort client-side
-  const { docs: allOrderItems = [] } = useCollection(
-    'orderItems',
-    null,
-    'asc',
-    [['tableId', '==', table.id]]
-  );
-
+function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onShowQR }) {
   // Isolate current sitting's items.
   // Primary: match by bookingId (exact, written by TakeOrderModal).
   // Fallback: seatedAt fence for items missing bookingId.
   // If table has no active booking at all, show nothing.
   const currentBookingId = table.currentBookingId ?? null;
   const seatedAtSecs = table.seatedAt?.seconds ?? 0;
-  const orderItems = allOrderItems.filter(i => {
-    if (i.bookingId) return i.bookingId === currentBookingId;
-    if (seatedAtSecs > 0) return (i.firedAt?.seconds ?? 0) >= seatedAtSecs;
-    return false;
-  }).slice().sort((a, b) => (a.firedAt?.seconds ?? 0) - (b.firedAt?.seconds ?? 0));
+  const orderItems = allOrderItems
+    .filter(i => {
+      if (i.tableId !== table.id) return false;
+      if (i.bookingId) return i.bookingId === currentBookingId;
+      if (seatedAtSecs > 0) return (i.firedAt?.seconds ?? 0) >= seatedAtSecs;
+      return false;
+    })
+    .slice()
+    .sort((a, b) => (a.firedAt?.seconds ?? 0) - (b.firedAt?.seconds ?? 0));
 
   const ready      = orderItems.filter((i) => i.status === 'ready');
   const inKitchen  = orderItems.filter((i) => ['in-kitchen', 'in-preparation'].includes(i.status));
@@ -645,6 +641,7 @@ export default function Server() {
               <div className="bg-white rounded-2xl shadow-sm border p-5 min-h-[500px] flex flex-col">
                 <OrderPanel
                   table={liveSelectedTable}
+                  allOrderItems={allOrderItems}
                   onRequestBill={handleRequestBill}
                   onAddItems={(t) => setAddItemsTable(t)}
                   onShowQR={(t) => setQrTable(t)}
