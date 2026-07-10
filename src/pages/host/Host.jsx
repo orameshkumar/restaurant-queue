@@ -119,7 +119,8 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
   const [partySize, setPartySize]             = useState(1)
   const [isWalkIn, setIsWalkIn]               = useState(false)
   const [loading, setLoading]                 = useState(false)
-  const { docs: servers = [] } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']])
+  const { docs: _allServers = [] } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']])
+  const servers = _allServers.filter(s => s.active !== false)
   const [assignedServerId, setAssignedServerId] = useState(preselectedTable?.assignedServerId ?? '')
 
   // Effective party size from selected booking or walk-in input
@@ -711,6 +712,22 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
   const { docs: readyItems = [] } = useCollection('orderItems', null, null, [['status', '==', 'ready']]);
   const { docs: activeItems = [] } = useCollection('orderItems', null, null, [['status', 'in', ['placed','in-kitchen','in-preparation']]]);
   const { docs: servedItems = [] } = useCollection('orderItems', null, null, [['status', '==', 'served']]);
+  const { docs: allStaff = [] } = useCollection('staff', 'name', 'asc');
+
+  // Auto-clear assignedServerId on tables where the server is inactive
+  useEffect(() => {
+    if (!tables.length || !allStaff.length) return;
+    const inactiveIds = new Set(allStaff.filter(s => s.active === false).map(s => s.id));
+    tables.forEach(t => {
+      if (t.assignedServerId && inactiveIds.has(t.assignedServerId)) {
+        updateDoc(doc(db, 'tables', t.id), {
+          assignedServerId: null,
+          assignedServerName: null,
+          updatedAt: serverTimestamp(),
+        }).catch(console.error);
+      }
+    });
+  }, [tables, allStaff]);
 
   const readyTableIds = useMemo(() => new Set(readyItems.map(i => i.tableId)), [readyItems]);
 
