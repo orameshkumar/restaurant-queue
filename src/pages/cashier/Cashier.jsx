@@ -223,17 +223,29 @@ export default function Cashier() {
   useEffect(() => {
     if (!liveSelectedTable) { setOrders([]); return; }
     const tableIds = [liveSelectedTable.id, liveSelectedTable.linkedTableId].filter(Boolean);
+    console.log('[Cashier] orders query', {
+      tableId: liveSelectedTable.id,
+      tableNumber: liveSelectedTable.tableNumber,
+      linkedTableId: liveSelectedTable.linkedTableId ?? 'none',
+      tableIds,
+      currentBookingId: liveSelectedTable.currentBookingId ?? 'none',
+    });
     const q = query(collection(db, 'orders'), where('tableId', 'in', tableIds));
     const unsub = onSnapshot(q, snap => {
-      const docs = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const docs = all
         .filter(d => {
           if (['draft', 'rejected', 'billed'].includes(d.status)) return false;
-          // Only show orders belonging to the current sitting
           if (liveSelectedTable.currentBookingId && d.bookingId && d.bookingId !== liveSelectedTable.currentBookingId) return false;
           return true;
         })
         .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0));
+      console.log('[Cashier] orders snapshot', {
+        total: all.length,
+        afterFilter: docs.length,
+        filtered: all.filter(d => !docs.find(x => x.id === d.id)).map(d => ({ id: d.id, status: d.status, tableId: d.tableId, bookingId: d.bookingId })),
+        included: docs.map(d => ({ id: d.id, status: d.status, tableId: d.tableId, bookingId: d.bookingId, items: d.items?.length })),
+      });
       setOrders(docs);
     });
     return unsub;

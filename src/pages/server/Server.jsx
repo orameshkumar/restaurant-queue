@@ -500,14 +500,21 @@ export default function Server() {
     const direct = allTables.filter(
       (t) => t.assignedServerId === profile?.id && visibleStatuses.includes(t.status)
     );
-    // Also include linked partners of directly-assigned tables (same guest party)
     const directIds = new Set(direct.map(t => t.id));
     const linkedPartners = direct
       .filter(t => t.linkedTableId && !directIds.has(t.linkedTableId))
       .map(t => allTables.find(x => x.id === t.linkedTableId))
       .filter(Boolean)
       .filter(t => visibleStatuses.includes(t.status));
-    return [...direct, ...linkedPartners].sort((a, b) => (a.tableNumber ?? 0) - (b.tableNumber ?? 0));
+    const result = [...direct, ...linkedPartners].sort((a, b) => (a.tableNumber ?? 0) - (b.tableNumber ?? 0));
+    console.log('[Server] myTables', {
+      profileId: profile?.id ?? 'none',
+      allTablesCount: allTables.length,
+      directMatches: direct.map(t => ({ id: t.id, num: t.tableNumber, status: t.status, assignedServerId: t.assignedServerId, linkedTableId: t.linkedTableId ?? 'none' })),
+      linkedPartners: linkedPartners.map(t => ({ id: t.id, num: t.tableNumber, status: t.status, assignedServerId: t.assignedServerId ?? 'none' })),
+      total: result.length,
+    });
+    return result;
   }, [allTables, profile?.id]);
 
   // All order items for pending count (across my tables)
