@@ -293,9 +293,10 @@ function OrderPanel({ table, onRequestBill, onAddItems }) {
   ).slice().sort((a, b) => (a.firedAt?.seconds ?? 0) - (b.firedAt?.seconds ?? 0));
 
   const ready      = orderItems.filter((i) => i.status === 'ready');
-  const inProgress = orderItems.filter((i) => ['placed', 'in-kitchen', 'in-preparation'].includes(i.status));
+  const inKitchen  = orderItems.filter((i) => ['in-kitchen', 'in-preparation'].includes(i.status));
+  const placed     = orderItems.filter((i) => i.status === 'placed');
   const served     = orderItems.filter((i) => i.status === 'served');
-  const allServed  = orderItems.length > 0 && ready.length === 0 && inProgress.length === 0;
+  const allServed  = orderItems.length > 0 && ready.length === 0 && inKitchen.length === 0 && placed.length === 0;
 
   async function handleServe(item) {
     try {
@@ -384,13 +385,41 @@ function OrderPanel({ table, onRequestBill, onAddItems }) {
           </div>
         )}
 
-        {/* In progress */}
-        {inProgress.length > 0 && (
+        {/* In kitchen */}
+        {inKitchen.length > 0 && (
+          <div className="rounded-xl bg-orange-50 border border-orange-200 p-4">
+            <h3 className="text-sm font-bold text-orange-800 mb-2">In Kitchen 🍳</h3>
+            <div className="divide-y divide-orange-100">
+              {inKitchen.map((item) => (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  actions={
+                    <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-orange-200 text-orange-800 font-medium capitalize">
+                      {item.status === 'in-preparation' ? 'Preparing' : 'In Kitchen'}
+                    </span>
+                  }
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Placed / waiting for kitchen */}
+        {placed.length > 0 && (
           <div className="rounded-xl bg-yellow-50 border border-yellow-200 p-4">
-            <h3 className="text-sm font-bold text-yellow-800 mb-2">In Progress 🍳</h3>
+            <h3 className="text-sm font-bold text-yellow-800 mb-2">Waiting for Kitchen ⏳</h3>
             <div className="divide-y divide-yellow-100">
-              {inProgress.map((item) => (
-                <ItemRow key={item.id} item={item} actions={null} />
+              {placed.map((item) => (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  actions={
+                    <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-yellow-200 text-yellow-800 font-medium">
+                      Placed
+                    </span>
+                  }
+                />
               ))}
             </div>
           </div>
