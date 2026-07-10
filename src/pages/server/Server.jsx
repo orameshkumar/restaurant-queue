@@ -276,16 +276,23 @@ function BulkHandoffModal({ tables, onClose }) {
 // ─── Order Panel ─────────────────────────────────────────────────────────────
 
 function OrderPanel({ table, onRequestBill, onAddItems }) {
-  const { docs: orderItems = [] } = useCollection(
+  const { docs: allOrderItems = [] } = useCollection(
     'orderItems',
     'firedAt',
     'asc',
     [['tableId', '==', table.id]]
   );
 
-  const ready      = (orderItems ?? []).filter((i) => i.status === 'ready');
-  const inProgress = (orderItems ?? []).filter((i) => ['placed', 'in-kitchen', 'in-preparation'].includes(i.status));
-  const served     = (orderItems ?? []).filter((i) => i.status === 'served');
+  // Only show items from the current sitting — filter by seatedAt so previous
+  // guests' orders don't bleed through after billing and re-seating
+  const seatedAtSecs = table.seatedAt?.seconds ?? 0;
+  const orderItems = seatedAtSecs > 0
+    ? allOrderItems.filter(i => (i.firedAt?.seconds ?? 0) >= seatedAtSecs)
+    : allOrderItems;
+
+  const ready      = orderItems.filter((i) => i.status === 'ready');
+  const inProgress = orderItems.filter((i) => ['placed', 'in-kitchen', 'in-preparation'].includes(i.status));
+  const served     = orderItems.filter((i) => i.status === 'served');
 
   async function handleServe(item) {
     try {
