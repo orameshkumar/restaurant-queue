@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
 import QRCode from 'react-qr-code';
@@ -533,7 +533,18 @@ export default function Server() {
   const checkedTables = myTables.filter(t => checkedIds.has(t.id));
 
   // Keep selectedTable in sync with live data
-  const liveSelectedTable = myTables.find((t) => t.id === selectedTable?.id) ?? selectedTable;
+  const liveSelectedTable = myTables.find((t) => t.id === selectedTable?.id) ?? null;
+
+  // Auto-select: retain if still occupied; otherwise pick first occupied table
+  useEffect(() => {
+    if (myTables.length === 0) return;
+    const occupiedTables = myTables.filter(t => activeStatuses.includes(t.status));
+    if (occupiedTables.length === 0) return;
+    const currentStillActive = selectedTable && occupiedTables.some(t => t.id === selectedTable.id);
+    if (!currentStillActive) {
+      setSelectedTable(occupiedTables[0]);
+    }
+  }, [myTables.map(t => t.id + t.status).join(',')]);
 
   async function handleRequestBill(table) {
     if (table.assignedServerId !== profile?.id) {
