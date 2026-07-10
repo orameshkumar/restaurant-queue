@@ -209,14 +209,6 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
       const serverUpdate = effectiveServerId
         ? { assignedServerId: effectiveServerId, assignedServerName: serverDoc?.name ?? null }
         : {}
-      console.log('[Host] assign tables', {
-        table1: { id: resolvedTable.id, num: resolvedTable.tableNumber, existingServer: resolvedTable.assignedServerId ?? 'none' },
-        table2: resolvedTable2 ? { id: resolvedTable2.id, num: resolvedTable2.tableNumber, existingServer: resolvedTable2.assignedServerId ?? 'none' } : 'none',
-        hostPickedServer: assignedServerId || 'none',
-        effectiveServerId: effectiveServerId ?? 'none',
-        serverUpdate,
-      });
-
       await updateDoc(doc(db, 'tables', resolvedTable.id), {
         status:           'occupied',
         currentBookingId: bookingId,

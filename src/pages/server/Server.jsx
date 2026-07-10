@@ -507,15 +507,6 @@ export default function Server() {
       .filter(Boolean)
       .filter(t => visibleStatuses.includes(t.status));
     const result = [...direct, ...linkedPartners].sort((a, b) => (a.tableNumber ?? 0) - (b.tableNumber ?? 0));
-    const tablesWithServer = allTables.filter(t => t.assignedServerId);
-    console.log('[Server] myTables', {
-      profileId: profile?.id ?? 'none',
-      allTablesCount: allTables.length,
-      directMatches: direct.map(t => ({ id: t.id, num: t.tableNumber, status: t.status, assignedServerId: t.assignedServerId, linkedTableId: t.linkedTableId ?? 'none' })),
-      linkedPartners: linkedPartners.map(t => ({ id: t.id, num: t.tableNumber, status: t.status, assignedServerId: t.assignedServerId ?? 'none' })),
-      total: result.length,
-      tablesWithAnyServer: tablesWithServer.map(t => ({ num: t.tableNumber, status: t.status, assignedServerId: t.assignedServerId })),
-    });
     return result;
   }, [allTables, profile?.id]);
 
@@ -577,28 +568,12 @@ export default function Server() {
     }
   }
 
-  // ── DEBUG PANEL (remove once issue resolved) ─────────────────────────────
-  const debugTables = allTables.filter(t => ['occupied','ordering','eating','bill_requested','cleaning'].includes(t.status));
-
   return (
     <div className="min-h-screen bg-gray-50">
       <PageHeader
         title="My Tables"
         subtitle={`Welcome, ${profile?.name ?? 'Server'}`}
       />
-
-      {/* DEBUG BAND — remove after diagnosis */}
-      <div className="bg-yellow-50 border-b border-yellow-300 px-4 py-2 text-xs font-mono text-yellow-900 space-y-1">
-        <div><strong>DEBUG</strong> — profile.id: <span className="text-blue-700">{profile?.id ?? 'null'}</span> · myTables count: <span className="text-blue-700">{myTables.length}</span></div>
-        <div className="space-y-0.5">{debugTables.length === 0 ? 'No active tables' : debugTables.map(t =>
-          <div key={t.id}>
-            T{t.tableNumber}[{t.status}]
-            {' '}serverId=<span className={t.assignedServerId === profile?.id ? 'text-green-700 font-bold' : 'text-red-700'}>"{String(t.assignedServerId ?? '')}"</span>
-            {' '}serverName=<span className="text-purple-700">"{String(t.assignedServerName ?? '')}"</span>
-            {t.linkedTableId ? <span className="text-amber-700"> 🔗T{allTables.find(x=>x.id===t.linkedTableId)?.tableNumber??'?'}</span> : ''}
-          </div>
-        )}</div>
-      </div>
 
       <div className="max-w-7xl mx-auto px-4 py-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
