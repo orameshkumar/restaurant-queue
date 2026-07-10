@@ -119,8 +119,8 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
   const [partySize, setPartySize]             = useState(1)
   const [isWalkIn, setIsWalkIn]               = useState(false)
   const [loading, setLoading]                 = useState(false)
-  const { docs: _allServers = [] } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']])
-  const servers = _allServers.filter(s => s.active !== false)
+  const { docs: _allStaffAssign = [] } = useCollection('staff', 'name', 'asc')
+  const servers = _allStaffAssign.filter(s => s.role === 'server' && s.active !== false)
   const [assignedServerId, setAssignedServerId] = useState(preselectedTable?.assignedServerId ?? '')
 
   // Effective party size from selected booking or walk-in input

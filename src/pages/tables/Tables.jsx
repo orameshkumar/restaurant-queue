@@ -9,8 +9,8 @@ import PageHeader from '../../components/PageHeader';
 // ─── Assign Server Modal ──────────────────────────────────────────────────────
 
 function AssignServerModal({ table, onClose }) {
-  const { docs: _allServers = [] } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']]);
-  const servers = _allServers.filter(s => s.active !== false);
+  const { docs: allStaff = [] } = useCollection('staff', 'name', 'asc');
+  const servers = allStaff.filter(s => s.role === 'server' && s.active !== false);
   const [selectedId, setSelectedId] = useState(table.assignedServerId ?? '');
   const [saving, setSaving] = useState(false);
 

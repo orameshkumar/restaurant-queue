@@ -203,8 +203,8 @@ function AddItemsModal({ tableId, tableStatus, onClose }) {
 // ─── Handoff Modal ────────────────────────────────────────────────────────────
 
 function HandoffModal({ table, onClose }) {
-  const { docs: _allStaff = [] } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']]);
-  const staffList = _allStaff.filter(s => s.active !== false);
+  const { docs: _allStaffHandoff = [] } = useCollection('staff', 'name', 'asc');
+  const staffList = _allStaffHandoff.filter(s => s.role === 'server' && s.active !== false);
   const [selectedId, setSelectedId] = useState('');
   const [saving, setSaving] = useState(false);
 
