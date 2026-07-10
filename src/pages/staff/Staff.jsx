@@ -238,42 +238,53 @@ export default function Staff() {
 
             <form onSubmit={handleAdd} className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="add-uid" className="block text-sm font-medium text-gray-700 mb-1">
                   Firebase Auth UID
                 </label>
                 <input
+                  id="add-uid"
+                  name="uid"
                   type="text"
                   value={addForm.uid}
                   onChange={(e) => setAddForm({ ...addForm, uid: e.target.value })}
                   placeholder="Paste UID from Firebase Console"
+                  autoComplete="off"
                   className="w-full border rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-amber-400"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label htmlFor="add-name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                 <input
+                  id="add-name"
+                  name="name"
                   type="text"
                   value={addForm.name}
                   onChange={(e) => setAddForm({ ...addForm, name: e.target.value })}
+                  autoComplete="name"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="add-email" className="block text-sm font-medium text-gray-700 mb-1">
                   Email <span className="text-gray-400 font-normal">(informational)</span>
                 </label>
                 <input
+                  id="add-email"
+                  name="email"
                   type="email"
                   value={addForm.email}
                   onChange={(e) => setAddForm({ ...addForm, email: e.target.value })}
+                  autoComplete="email"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <label htmlFor="add-role" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select
+                  id="add-role"
+                  name="role"
                   value={addForm.role}
                   onChange={(e) => setAddForm({ ...addForm, role: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -332,18 +343,23 @@ export default function Staff() {
             </div>
             <form onSubmit={handleEdit} className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
+                <label htmlFor="edit-name" className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                 <input
+                  id="edit-name"
+                  name="name"
                   type="text"
                   value={editForm.name}
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  autoComplete="name"
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
                   required
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                <label htmlFor="edit-email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                 <input
+                  id="edit-email"
+                  name="email"
                   type="email"
                   value={editForm.email}
                   readOnly
@@ -354,8 +370,10 @@ export default function Staff() {
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                <label htmlFor="edit-role" className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                 <select
+                  id="edit-role"
+                  name="role"
                   value={editForm.role}
                   onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
