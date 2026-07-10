@@ -426,6 +426,10 @@ export default function Server() {
   const liveSelectedTable = myTables.find((t) => t.id === selectedTable?.id) ?? selectedTable;
 
   async function handleRequestBill(table) {
+    if (table.assignedServerId !== profile?.id) {
+      toast.error('You are not assigned to this table.');
+      return;
+    }
     try {
       await updateDoc(doc(db, 'tables', table.id), { status: 'bill_requested' });
       toast.success(`Bill requested for Table ${table.tableNumber}`);
