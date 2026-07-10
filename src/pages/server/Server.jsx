@@ -507,12 +507,14 @@ export default function Server() {
       .filter(Boolean)
       .filter(t => visibleStatuses.includes(t.status));
     const result = [...direct, ...linkedPartners].sort((a, b) => (a.tableNumber ?? 0) - (b.tableNumber ?? 0));
+    const tablesWithServer = allTables.filter(t => t.assignedServerId);
     console.log('[Server] myTables', {
       profileId: profile?.id ?? 'none',
       allTablesCount: allTables.length,
       directMatches: direct.map(t => ({ id: t.id, num: t.tableNumber, status: t.status, assignedServerId: t.assignedServerId, linkedTableId: t.linkedTableId ?? 'none' })),
       linkedPartners: linkedPartners.map(t => ({ id: t.id, num: t.tableNumber, status: t.status, assignedServerId: t.assignedServerId ?? 'none' })),
       total: result.length,
+      tablesWithAnyServer: tablesWithServer.map(t => ({ num: t.tableNumber, status: t.status, assignedServerId: t.assignedServerId })),
     });
     return result;
   }, [allTables, profile?.id]);
