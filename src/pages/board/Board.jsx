@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+import { useEwt } from '../../hooks/useEwt';
 
 function isToday(ts) {
   const date = ts?.toDate ? ts.toDate() : ts ? new Date(ts) : null;
@@ -17,6 +18,7 @@ export default function Board() {
   const [bookings, setBookings] = useState([]);
   const [restaurantName, setRestaurantName] = useState('Restaurant');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const { calcEwt } = useEwt();
 
   // Clock — updates every second
   useEffect(() => {
@@ -125,7 +127,9 @@ export default function Board() {
           ) : (
             <div className="space-y-3">
               {waitingTokens.map((b, idx) => {
-                const estimatedWait = (idx + 1) * 20;
+                const personsAhead = waitingTokens.slice(0, idx).reduce((s, w) => s + (w.partySize || 1), 0);
+                const ewtMins = calcEwt(b.tablePreference ?? 'Any', personsAhead);
+                const ewtLabel = ewtMins > 0 ? `~${ewtMins} min` : 'Ready soon';
                 return (
                   <div
                     key={b.id}
@@ -142,7 +146,7 @@ export default function Board() {
                     </div>
                     <div className="text-right shrink-0">
                       <p className="text-xs text-gray-400">Est. wait</p>
-                      <p className="text-sm font-semibold text-yellow-300">~{estimatedWait} min</p>
+                      <p className="text-sm font-semibold text-yellow-300">{ewtLabel}</p>
                     </div>
                   </div>
                 );

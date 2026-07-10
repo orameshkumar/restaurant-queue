@@ -1216,7 +1216,11 @@ function QueueTab() {
               <tbody className="divide-y divide-gray-100">
                 {todayBookings.map((booking, idx) => {
                   const waitingPosition = waitingBookings.findIndex(b => b.id === booking.id);
-                  const ewt = waitingPosition >= 0 ? (calcEwt(booking.tablePreference ?? 'Any', waitingPosition) > 0 ? `~${calcEwt(booking.tablePreference ?? 'Any', waitingPosition)} min` : 'Ready soon') : '—';
+                  const personsAhead = waitingPosition >= 0
+                    ? waitingBookings.slice(0, waitingPosition).reduce((s, b) => s + (b.partySize || 1), 0)
+                    : -1;
+                  const ewtMins = personsAhead >= 0 ? calcEwt(booking.tablePreference ?? 'Any', personsAhead) : -1;
+                  const ewt = ewtMins > 0 ? `~${ewtMins} min` : ewtMins === 0 ? 'Ready soon' : '—';
 
                   return (
                   <React.Fragment key={booking.id}>
