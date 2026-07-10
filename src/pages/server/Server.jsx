@@ -276,9 +276,10 @@ function BulkHandoffModal({ tables, onClose }) {
 // ─── Order Panel ─────────────────────────────────────────────────────────────
 
 function OrderPanel({ table, onRequestBill, onAddItems }) {
+  // Fetch without orderBy to avoid composite index requirement — sort client-side
   const { docs: allOrderItems = [] } = useCollection(
     'orderItems',
-    'firedAt',
+    null,
     'asc',
     [['tableId', '==', table.id]]
   );
@@ -286,9 +287,10 @@ function OrderPanel({ table, onRequestBill, onAddItems }) {
   // Only show items from the current sitting — filter by seatedAt so previous
   // guests' orders don't bleed through after billing and re-seating
   const seatedAtSecs = table.seatedAt?.seconds ?? 0;
-  const orderItems = seatedAtSecs > 0
+  const orderItems = (seatedAtSecs > 0
     ? allOrderItems.filter(i => (i.firedAt?.seconds ?? 0) >= seatedAtSecs)
-    : allOrderItems;
+    : allOrderItems
+  ).slice().sort((a, b) => (a.firedAt?.seconds ?? 0) - (b.firedAt?.seconds ?? 0));
 
   const ready      = orderItems.filter((i) => i.status === 'ready');
   const inProgress = orderItems.filter((i) => ['placed', 'in-kitchen', 'in-preparation'].includes(i.status));
