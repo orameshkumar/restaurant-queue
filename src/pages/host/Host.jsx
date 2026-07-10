@@ -203,10 +203,11 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
       }
 
       const serverDoc = servers.find(s => s.id === assignedServerId)
-      const serverUpdate = {
-        assignedServerId:   assignedServerId || null,
-        assignedServerName: serverDoc?.name ?? null,
-      }
+      // Only overwrite server assignment if the host explicitly picked one.
+      // Leaving the dropdown blank preserves each table's existing assignment.
+      const serverUpdate = assignedServerId
+        ? { assignedServerId: assignedServerId, assignedServerName: serverDoc?.name ?? null }
+        : {}
 
       await updateDoc(doc(db, 'tables', resolvedTable.id), {
         status:           'occupied',
