@@ -202,11 +202,12 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
         })
       }
 
-      const serverDoc = servers.find(s => s.id === assignedServerId)
-      // Only overwrite server assignment if the host explicitly picked one.
-      // Leaving the dropdown blank preserves each table's existing assignment.
-      const serverUpdate = assignedServerId
-        ? { assignedServerId: assignedServerId, assignedServerName: serverDoc?.name ?? null }
+      // If host didn't pick a server, fall back to the first table's existing assignment
+      // so all linked tables are unified under one server.
+      const effectiveServerId = assignedServerId || resolvedTable.assignedServerId || null;
+      const serverDoc = servers.find(s => s.id === effectiveServerId);
+      const serverUpdate = effectiveServerId
+        ? { assignedServerId: effectiveServerId, assignedServerName: serverDoc?.name ?? null }
         : {}
 
       await updateDoc(doc(db, 'tables', resolvedTable.id), {
@@ -503,7 +504,7 @@ function QRCodeModal({ tableId, bookingId, tableNumber, guestName, onClose }) {
 
 // ─── Table Card ───────────────────────────────────────────────────────────────
 
-function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems = false, allDelivered = false }) {
+function TableCard({ table, waitingBookings, availableTables = [], allTables = [], hasReadyItems = false, allDelivered = false }) {
   const [showAssign, setShowAssign] = useState(false);
   const [showOrder, setShowOrder] = useState(false);
   const [qrInfo, setQrInfo] = useState(null);
@@ -602,7 +603,14 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
           <span>👥 {table.capacity}</span>
           {table.assignedServerName && <span className="text-blue-600">🧑‍🍳 {table.assignedServerName}</span>}
           {elapsed && <span className="text-amber-600">⏱ {elapsed}</span>}
-          {table.linkedTableId && <span className="text-xs text-amber-600 font-medium">🔗 Linked</span>}
+          {table.linkedTableId && (() => {
+            const partner = allTables.find(t => t.id === table.linkedTableId);
+            return (
+              <span className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                🔗 T{partner?.tableNumber ?? '?'}
+              </span>
+            );
+          })()}
           {hasReadyItems && (
             <span className="flex items-center gap-1 text-xs font-semibold text-green-700 bg-green-100 px-2 py-0.5 rounded-full animate-pulse">
               🔔 Ready
@@ -814,6 +822,7 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
                   table={table}
                   waitingBookings={waitingBookings}
                   availableTables={availableTables}
+                  allTables={tables}
                   hasReadyItems={readyTableIds.has(table.id)}
                   allDelivered={allDeliveredTableIds.has(table.id)}
                 />
