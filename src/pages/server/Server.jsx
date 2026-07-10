@@ -496,9 +496,19 @@ export default function Server() {
   const activeStatuses = ['occupied', 'ordering', 'eating', 'bill_requested'];
   const visibleStatuses = [...activeStatuses, 'available', 'reserved', 'cleaning'];
   const { docs: allTables = [] } = useCollection('tables', 'tableNumber', 'asc');
-  const myTables = allTables.filter(
-    (t) => t.assignedServerId === profile?.id && visibleStatuses.includes(t.status)
-  );
+  const myTables = useMemo(() => {
+    const direct = allTables.filter(
+      (t) => t.assignedServerId === profile?.id && visibleStatuses.includes(t.status)
+    );
+    // Also include linked partners of directly-assigned tables (same guest party)
+    const directIds = new Set(direct.map(t => t.id));
+    const linkedPartners = direct
+      .filter(t => t.linkedTableId && !directIds.has(t.linkedTableId))
+      .map(t => allTables.find(x => x.id === t.linkedTableId))
+      .filter(Boolean)
+      .filter(t => visibleStatuses.includes(t.status));
+    return [...direct, ...linkedPartners].sort((a, b) => (a.tableNumber ?? 0) - (b.tableNumber ?? 0));
+  }, [allTables, profile?.id]);
 
   // All order items for pending count (across my tables)
   const myTableIds = myTables.map((t) => t.id);
