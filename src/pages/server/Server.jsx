@@ -397,12 +397,13 @@ function OrderPanel({ table, onRequestBill, onAddItems }) {
 export default function Server() {
   const { profile } = useAuth();
 
-  // My assigned tables (active statuses)
+  // My assigned tables — fetch all, filter client-side to avoid composite index requirement
   const activeStatuses = ['occupied', 'ordering', 'eating', 'bill_requested'];
-  const { docs: allTables = [] } = useCollection('tables', 'tableNumber', 'asc', [
-    ['assignedServerId', '==', profile?.id ?? '__none__'],
-  ]);
-  const myTables = (allTables ?? []).filter((t) => activeStatuses.includes(t.status));
+  const visibleStatuses = [...activeStatuses, 'available', 'reserved', 'cleaning'];
+  const { docs: allTables = [] } = useCollection('tables', 'tableNumber', 'asc');
+  const myTables = allTables.filter(
+    (t) => t.assignedServerId === profile?.id && visibleStatuses.includes(t.status)
+  );
 
   // All order items for pending count (across my tables)
   const myTableIds = myTables.map((t) => t.id);
