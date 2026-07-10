@@ -119,6 +119,8 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
   const [partySize, setPartySize]             = useState(1)
   const [isWalkIn, setIsWalkIn]               = useState(false)
   const [loading, setLoading]                 = useState(false)
+  const { docs: servers = [] } = useCollection('staff', 'name', 'asc', [['role', '==', 'server']])
+  const [assignedServerId, setAssignedServerId] = useState(preselectedTable?.assignedServerId ?? '')
 
   // Effective party size from selected booking or walk-in input
   const selectedBooking = waitingBookings.find(b => b.id === selectedBookingId)
@@ -147,6 +149,11 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
 
   const resolvedTable  = preselectedTable ?? availableTables.find(t => t.id === selectedTableId) ?? null
   const resolvedTable2 = linkedMode ? availableTables.find(t => t.id === secondTableId) ?? null : null
+
+  // Pre-fill server from whichever table is resolved
+  useEffect(() => {
+    setAssignedServerId(resolvedTable?.assignedServerId ?? '')
+  }, [resolvedTable?.id])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return waitingBookings
@@ -194,11 +201,18 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
         })
       }
 
+      const serverDoc = servers.find(s => s.id === assignedServerId)
+      const serverUpdate = {
+        assignedServerId:   assignedServerId || null,
+        assignedServerName: serverDoc?.name ?? null,
+      }
+
       await updateDoc(doc(db, 'tables', resolvedTable.id), {
         status:           'occupied',
         currentBookingId: bookingId,
         linkedTableId:    resolvedTable2?.id ?? null,
         seatedAt:         serverTimestamp(),
+        ...serverUpdate,
       })
 
       if (resolvedTable2) {
@@ -207,6 +221,7 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
           currentBookingId: bookingId,
           linkedTableId:    resolvedTable.id,
           seatedAt:         serverTimestamp(),
+          ...serverUpdate,
         })
       }
 
@@ -414,6 +429,25 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
               )}
             </div>
           )}
+        </div>
+
+        {/* Server assignment */}
+        <div className="px-6 pb-4">
+          <label htmlFor="assign-modal-server" className="block text-xs font-medium text-gray-600 mb-1">
+            Assign Server <span className="text-gray-400">(optional)</span>
+          </label>
+          <select
+            id="assign-modal-server"
+            name="assignedServerId"
+            value={assignedServerId}
+            onChange={e => setAssignedServerId(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+          >
+            <option value="">— No server —</option>
+            {servers.map(s => (
+              <option key={s.id} value={s.id}>{s.name}</option>
+            ))}
+          </select>
         </div>
 
         <div className="flex justify-end gap-3 px-6 py-4 border-t flex-shrink-0">
