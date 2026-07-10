@@ -161,7 +161,7 @@ function SplitModal({ total, onClose }) {
 
 // ─── Main component ──────────────────────────────────────────────────────────
 export default function Cashier() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   // ── merchant settings for UPI QR ─────────────────────────────────────────
   const { document: restaurantSettings } = useDocument('restaurantSettings', 'main');
@@ -371,8 +371,10 @@ export default function Cashier() {
         paymentMode,
         closedAt: serverTimestamp(),
         closedDate: todayString(),
-        serverId: selectedTable.assignedServerId ?? null,
-        cashierId: user?.uid ?? null,
+        serverId:     selectedTable.assignedServerId   ?? null,
+        serverName:   selectedTable.assignedServerName ?? null,
+        cashierId:    user?.uid    ?? null,
+        cashierName:  profile?.name ?? null,
         status: 'closed',
       });
 

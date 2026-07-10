@@ -145,11 +145,13 @@ function AnalyticsTab({ staffMap }) {
 
   function handleDownloadCSV() {
     if (!bills.length) { toast.error('Generate a report first.'); return; }
-    const headers = ['Bill ID','Table','Closed At','Server','Payment Mode','Subtotal','Tax','Discount','Tip','Total','Voided'];
+    const headers = ['Bill ID','Table','Closed At','Server','Cashier','Payment Mode','Subtotal','Tax','Discount','Tip','Total','Voided'];
     const rows = bills.map(b => {
       const closed = b.closedAt?.toDate ? b.closedAt.toDate() : b.closedAt ? new Date(b.closedAt) : null;
       return [b.id, b.tableNumber ?? '', closed ? format(closed, 'yyyy-MM-dd HH:mm:ss') : '',
-        staffMap[b.serverId] || b.serverId || '', b.paymentMode || '',
+        b.serverName || staffMap[b.serverId] || b.serverId || '',
+        b.cashierName || staffMap[b.cashierId] || b.cashierId || '',
+        b.paymentMode || '',
         (b.subtotal||0).toFixed(2),(b.taxAmount||0).toFixed(2),(b.discount?.amount||0).toFixed(2),
         (b.tip||0).toFixed(2),(b.total||0).toFixed(2), b.status==='voided'?'Yes':'No'];
     });
@@ -277,6 +279,7 @@ function AnalyticsTab({ staffMap }) {
                       <th className="text-left py-2 px-3 text-gray-500 font-medium">Table</th>
                       <th className="text-left py-2 px-3 text-gray-500 font-medium">Time</th>
                       <th className="text-left py-2 px-3 text-gray-500 font-medium">Server</th>
+                      <th className="text-left py-2 px-3 text-gray-500 font-medium">Cashier</th>
                       <th className="text-left py-2 px-3 text-gray-500 font-medium">Payment</th>
                       <th className="text-right py-2 px-3 text-gray-500 font-medium">Total</th>
                     </tr>
@@ -288,7 +291,8 @@ function AnalyticsTab({ staffMap }) {
                         <tr key={b.id} className="border-b border-gray-50 hover:bg-gray-50">
                           <td className="py-2 px-3 text-gray-700">Table {b.tableNumber ?? '—'}</td>
                           <td className="py-2 px-3 text-gray-500">{closed ? format(closed, 'HH:mm') : '—'}</td>
-                          <td className="py-2 px-3 text-gray-600">{staffMap[b.serverId] || '—'}</td>
+                          <td className="py-2 px-3 text-gray-600">{b.serverName || staffMap[b.serverId] || '—'}</td>
+                          <td className="py-2 px-3 text-gray-600">{b.cashierName || staffMap[b.cashierId] || '—'}</td>
                           <td className="py-2 px-3 text-gray-600 capitalize">{b.paymentMode || '—'}</td>
                           <td className="py-2 px-3 text-right font-semibold text-gray-800">{fmt(b.total)}</td>
                         </tr>
@@ -474,6 +478,7 @@ function BillsRegisterTab({ staffMap }) {
                       <th className="text-left py-2 px-3 text-gray-500 font-medium">Opened</th>
                       <th className="text-left py-2 px-3 text-gray-500 font-medium">Closed</th>
                       <th className="text-left py-2 px-3 text-gray-500 font-medium">Server</th>
+                      <th className="text-left py-2 px-3 text-gray-500 font-medium">Cashier</th>
                       <th className="text-left py-2 px-3 text-gray-500 font-medium">Payment</th>
                       <th className="text-right py-2 px-3 text-gray-500 font-medium">Total</th>
                     </tr>
@@ -492,7 +497,8 @@ function BillsRegisterTab({ staffMap }) {
                           <td className="py-2 px-3 text-gray-700 font-medium">Table {b.tableNumber ?? '—'}</td>
                           <td className="py-2 px-3 text-gray-500">{opened ? format(opened, 'dd MMM HH:mm') : '—'}</td>
                           <td className="py-2 px-3 text-gray-500">{closed  ? format(closed,  'dd MMM HH:mm') : isUnsettled ? <span className="text-amber-500 font-medium">In progress</span> : '—'}</td>
-                          <td className="py-2 px-3 text-gray-600">{staffMap[b.serverId] || '—'}</td>
+                          <td className="py-2 px-3 text-gray-600">{b.serverName || staffMap[b.serverId] || '—'}</td>
+                          <td className="py-2 px-3 text-gray-600">{b.cashierName || staffMap[b.cashierId] || '—'}</td>
                           <td className="py-2 px-3 text-gray-600 capitalize">{b.paymentMode || '—'}</td>
                           <td className="py-2 px-3 text-right font-semibold text-gray-800">{fmt(b.total)}</td>
                         </tr>
@@ -502,7 +508,7 @@ function BillsRegisterTab({ staffMap }) {
                   {filtered.length > 1 && (
                     <tfoot>
                       <tr className="border-t-2 border-gray-200">
-                        <td colSpan={6} className="py-2 px-3 text-sm font-semibold text-gray-600">Total</td>
+                        <td colSpan={7} className="py-2 px-3 text-sm font-semibold text-gray-600">Total</td>
                         <td className="py-2 px-3 text-right font-bold text-gray-800">
                           {fmt(filtered.reduce((s, b) => s + (b.total || 0), 0))}
                         </td>
