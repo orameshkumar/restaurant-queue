@@ -311,10 +311,12 @@ function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onSh
   // Fallback: seatedAt fence for items missing bookingId.
   // If table has no active booking at all, show nothing.
   const currentBookingId = table.currentBookingId ?? null;
+  const linkedTableId    = table.linkedTableId ?? null;
   const seatedAtSecs = table.seatedAt?.seconds ?? 0;
   const orderItems = allOrderItems
     .filter(i => {
-      if (i.tableId !== table.id) return false;
+      const belongsHere = i.tableId === table.id || (linkedTableId && i.tableId === linkedTableId);
+      if (!belongsHere) return false;
       if (i.bookingId) return i.bookingId === currentBookingId;
       if (seatedAtSecs > 0) return (i.firedAt?.seconds ?? 0) >= seatedAtSecs;
       return false;

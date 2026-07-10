@@ -4,6 +4,7 @@ import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore
 import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useCollection } from '../../hooks/useCollection';
+import { useAuth } from '../../hooks/useAuth';
 import PageHeader from '../../components/PageHeader';
 
 const RANGE_OPTIONS = [
@@ -81,7 +82,7 @@ function DateRangePicker({ preset, setPreset, customFrom, setCustomFrom, customT
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB 1 — Analytics
 // ══════════════════════════════════════════════════════════════════════════════
-function AnalyticsTab({ staffMap }) {
+function AnalyticsTab({ staffMap, currentUserId }) {
   const [preset, setPreset]         = useState('today');
   const [customFrom, setCustomFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customTo, setCustomTo]     = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -287,14 +288,18 @@ function AnalyticsTab({ staffMap }) {
                   <tbody>
                     {bills.map(b => {
                       const closed = b.closedAt?.toDate ? b.closedAt.toDate() : b.closedAt ? new Date(b.closedAt) : null;
+                      const isMine = currentUserId && b.serverId === currentUserId;
                       return (
-                        <tr key={b.id} className="border-b border-gray-50 hover:bg-gray-50">
-                          <td className="py-2 px-3 text-gray-700">Table {b.tableNumber ?? '—'}</td>
+                        <tr key={b.id} className={`border-b border-gray-50 hover:bg-indigo-50 ${isMine ? 'bg-indigo-50 font-medium' : ''}`}>
+                          <td className="py-2 px-3 text-gray-700">
+                            Table {b.tableNumber ?? '—'}
+                            {isMine && <span className="ml-2 text-xs text-indigo-500 font-normal">you</span>}
+                          </td>
                           <td className="py-2 px-3 text-gray-500">{closed ? format(closed, 'HH:mm') : '—'}</td>
-                          <td className="py-2 px-3 text-gray-600">{b.serverName || staffMap[b.serverId] || '—'}</td>
+                          <td className={`py-2 px-3 ${isMine ? 'text-indigo-700' : 'text-gray-600'}`}>{b.serverName || staffMap[b.serverId] || '—'}</td>
                           <td className="py-2 px-3 text-gray-600">{b.cashierName || staffMap[b.cashierId] || '—'}</td>
                           <td className="py-2 px-3 text-gray-600 capitalize">{b.paymentMode || '—'}</td>
-                          <td className="py-2 px-3 text-right font-semibold text-gray-800">{fmt(b.total)}</td>
+                          <td className={`py-2 px-3 text-right font-semibold ${isMine ? 'text-indigo-700' : 'text-gray-800'}`}>{fmt(b.total)}</td>
                         </tr>
                       );
                     })}
@@ -312,7 +317,7 @@ function AnalyticsTab({ staffMap }) {
 // ══════════════════════════════════════════════════════════════════════════════
 // TAB 2 — Bills Register
 // ══════════════════════════════════════════════════════════════════════════════
-function BillsRegisterTab({ staffMap }) {
+function BillsRegisterTab({ staffMap, currentUserId }) {
   const [preset, setPreset]         = useState('today');
   const [customFrom, setCustomFrom] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [customTo, setCustomTo]     = useState(format(new Date(), 'yyyy-MM-dd'));
@@ -491,16 +496,20 @@ function BillsRegisterTab({ staffMap }) {
                         : null;
                       const closed = b.closedAt?.toDate ? b.closedAt.toDate() : b.closedAt ? new Date(b.closedAt) : null;
                       const isUnsettled = b._source === 'table';
+                      const isMine = currentUserId && b.serverId === currentUserId;
                       return (
-                        <tr key={b.id} className={`border-b border-gray-50 hover:bg-gray-50 ${isUnsettled ? 'bg-amber-50/40' : ''}`}>
+                        <tr key={b.id} className={`border-b border-gray-50 hover:bg-indigo-50 ${isMine ? 'bg-indigo-50 font-medium' : isUnsettled ? 'bg-amber-50/40' : ''}`}>
                           <td className="py-2 px-3"><StatusBadge status={b.status} /></td>
-                          <td className="py-2 px-3 text-gray-700 font-medium">Table {b.tableNumber ?? '—'}</td>
+                          <td className="py-2 px-3 text-gray-700 font-medium">
+                            Table {b.tableNumber ?? '—'}
+                            {isMine && <span className="ml-2 text-xs text-indigo-500 font-normal">you</span>}
+                          </td>
                           <td className="py-2 px-3 text-gray-500">{opened ? format(opened, 'dd MMM HH:mm') : '—'}</td>
                           <td className="py-2 px-3 text-gray-500">{closed  ? format(closed,  'dd MMM HH:mm') : isUnsettled ? <span className="text-amber-500 font-medium">In progress</span> : '—'}</td>
-                          <td className="py-2 px-3 text-gray-600">{b.serverName || staffMap[b.serverId] || '—'}</td>
+                          <td className={`py-2 px-3 ${isMine ? 'text-indigo-700' : 'text-gray-600'}`}>{b.serverName || staffMap[b.serverId] || '—'}</td>
                           <td className="py-2 px-3 text-gray-600">{b.cashierName || staffMap[b.cashierId] || '—'}</td>
                           <td className="py-2 px-3 text-gray-600 capitalize">{b.paymentMode || '—'}</td>
-                          <td className="py-2 px-3 text-right font-semibold text-gray-800">{fmt(b.total)}</td>
+                          <td className={`py-2 px-3 text-right font-semibold ${isMine ? 'text-indigo-700' : 'text-gray-800'}`}>{fmt(b.total)}</td>
                         </tr>
                       );
                     })}
@@ -535,6 +544,7 @@ const TABS = [
 
 export default function Reports() {
   const [activeTab, setActiveTab] = useState('analytics');
+  const { user } = useAuth();
   const { docs: staff = [] } = useCollection('staff', 'name');
   const staffMap = useMemo(() => {
     const m = {};
@@ -558,8 +568,8 @@ export default function Reports() {
         ))}
       </div>
 
-      {activeTab === 'analytics' && <AnalyticsTab staffMap={staffMap} />}
-      {activeTab === 'bills'     && <BillsRegisterTab staffMap={staffMap} />}
+      {activeTab === 'analytics' && <AnalyticsTab staffMap={staffMap} currentUserId={user?.uid} />}
+      {activeTab === 'bills'     && <BillsRegisterTab staffMap={staffMap} currentUserId={user?.uid} />}
     </div>
   );
 }

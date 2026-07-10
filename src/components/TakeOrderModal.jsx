@@ -178,6 +178,7 @@ export default function TakeOrderModal({ table, onClose }) {
           addDoc(collection(db, 'orderItems'), {
             tableId:             order.tableId,
             orderId:             order.id,
+            bookingId:           order.bookingId ?? null,
             menuItemId:          item.menuItemId ?? null,
             name:                item.name,
             category:            item.category ?? 'Uncategorized',

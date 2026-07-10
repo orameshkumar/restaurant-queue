@@ -392,7 +392,6 @@ export default function Cashier() {
       // 3. Update table
       await updateDoc(doc(db, 'tables', selectedTable.id), {
         status: 'cleaning',
-        assignedServerId: null,
         currentBookingId: null,
         lastBillId: billRef.id,
         linkedTableId: null,
@@ -402,7 +401,6 @@ export default function Cashier() {
       if (selectedTable.linkedTableId) {
         await updateDoc(doc(db, 'tables', selectedTable.linkedTableId), {
           status: 'cleaning',
-          assignedServerId: null,
           currentBookingId: null,
           linkedTableId: null,
         });
