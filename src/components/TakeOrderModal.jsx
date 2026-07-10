@@ -277,6 +277,8 @@ export default function TakeOrderModal({ table, onClose }) {
               <span className="absolute inset-y-0 left-3 flex items-center text-gray-400 pointer-events-none">🔍</span>
               <input
                 type="text"
+                id="order-search"
+                name="search"
                 placeholder="Search menu…"
                 value={menuSearch}
                 onChange={e => setMenuSearch(e.target.value)}
@@ -319,7 +321,7 @@ export default function TakeOrderModal({ table, onClose }) {
                           </div>
                         </div>
                         {inCart && (
-                          <input type="text" placeholder="Special instructions (optional)"
+                          <input type="text" id="order-special-instructions" name="specialInstructions" placeholder="Special instructions (optional)"
                             value={instructions[item.id] ?? ''}
                             onChange={e => setInstructions(p => ({ ...p, [item.id]: e.target.value }))}
                             className="mt-2 w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400" />
@@ -372,7 +374,7 @@ export default function TakeOrderModal({ table, onClose }) {
             </div>
             {note && <p className="px-5 pb-2 text-xs text-gray-400 italic">Note: "{note}"</p>}
             <div className="px-5 pb-3">
-              <input type="text" placeholder="Order note (optional)"
+              <input type="text" id="order-note" name="note" placeholder="Order note (optional)"
                 value={note} onChange={e => setNote(e.target.value)}
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-400" />
             </div>

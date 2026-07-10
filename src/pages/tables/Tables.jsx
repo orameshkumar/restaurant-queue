@@ -302,11 +302,13 @@ export default function Tables() {
             </div>
             <form onSubmit={handleSave} className="px-6 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="table-number" className="block text-sm font-medium text-gray-700 mb-1">
                   Table Number
                 </label>
                 <input
                   type="number"
+                  id="table-number"
+                  name="tableNumber"
                   min="1"
                   value={form.tableNumber}
                   onChange={(e) => setForm({ ...form, tableNumber: e.target.value })}
@@ -315,8 +317,10 @@ export default function Tables() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Section</label>
+                <label htmlFor="table-section" className="block text-sm font-medium text-gray-700 mb-1">Section</label>
                 <select
+                  id="table-section"
+                  name="section"
                   value={form.section}
                   onChange={(e) => setForm({ ...form, section: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
@@ -329,9 +333,11 @@ export default function Tables() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
+                <label htmlFor="table-capacity" className="block text-sm font-medium text-gray-700 mb-1">Capacity</label>
                 <input
                   type="number"
+                  id="table-capacity"
+                  name="capacity"
                   min="1"
                   value={form.capacity}
                   onChange={(e) => setForm({ ...form, capacity: e.target.value })}
@@ -340,9 +346,11 @@ export default function Tables() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <label htmlFor="table-notes" className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                 <input
                   type="text"
+                  id="table-notes"
+                  name="notes"
                   value={form.notes}
                   onChange={(e) => setForm({ ...form, notes: e.target.value })}
                   placeholder="e.g. Near window, wheelchair accessible"

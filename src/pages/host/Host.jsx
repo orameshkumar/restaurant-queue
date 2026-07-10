@@ -262,6 +262,8 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
             <>
               <input
                 type="text"
+                id="assign-search"
+                name="search"
                 placeholder="Search by token or guest name…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
@@ -286,11 +288,11 @@ function AssignModal({ table: preselectedTable, availableTables = [], waitingBoo
             </>
           ) : (
             <div className="space-y-3">
-              <input type="text" placeholder="Guest name *" value={guestName} onChange={e => setGuestName(e.target.value)}
+              <input type="text" id="assign-guest-name" name="guestName" placeholder="Guest name *" value={guestName} onChange={e => setGuestName(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-              <input type="tel" placeholder="+91 98765 43210" value={mobile} onChange={e => setMobile(e.target.value)}
+              <input type="tel" id="assign-mobile" name="mobile" placeholder="+91 98765 43210" value={mobile} onChange={e => setMobile(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-              <input type="number" placeholder="Party size" min={1} value={partySize} onChange={e => setPartySize(e.target.value)}
+              <input type="number" id="assign-party-size" name="partySize" placeholder="Party size" min={1} value={partySize} onChange={e => setPartySize(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             </div>
           )}
@@ -1028,9 +1030,11 @@ function QueueTab() {
         <form onSubmit={addWalkIn} className="p-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Guest Name *</label>
+              <label htmlFor="walkin-name" className="block text-xs font-medium text-gray-600 mb-1">Guest Name *</label>
               <input
                 type="text"
+                id="walkin-name"
+                name="wiGuestName"
                 value={wiGuestName}
                 onChange={e => setWiGuestName(e.target.value)}
                 placeholder="John Smith"
@@ -1038,9 +1042,11 @@ function QueueTab() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Mobile</label>
+              <label htmlFor="walkin-mobile" className="block text-xs font-medium text-gray-600 mb-1">Mobile</label>
               <input
                 type="tel"
+                id="walkin-mobile"
+                name="wiMobile"
                 value={wiMobile}
                 onChange={e => setWiMobile(e.target.value)}
                 placeholder="+91 98765 43210"
@@ -1048,9 +1054,11 @@ function QueueTab() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Party Size</label>
+              <label htmlFor="walkin-party-size" className="block text-xs font-medium text-gray-600 mb-1">Party Size</label>
               <input
                 type="number"
+                id="walkin-party-size"
+                name="wiPartySize"
                 min={1}
                 max={20}
                 value={wiPartySize}
@@ -1059,8 +1067,10 @@ function QueueTab() {
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Table Preference</label>
+              <label htmlFor="walkin-pref" className="block text-xs font-medium text-gray-600 mb-1">Table Preference</label>
               <select
+                id="walkin-pref"
+                name="wiPref"
                 value={wiPref}
                 onChange={e => setWiPref(e.target.value)}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
@@ -1098,9 +1108,11 @@ function QueueTab() {
             <form onSubmit={addReservation} className="p-5">
               <div className="flex flex-wrap items-end gap-4">
                 <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Date &amp; Time *</label>
+                  <label htmlFor="res-datetime" className="block text-xs font-medium text-gray-600 mb-1">Date &amp; Time *</label>
                   <input
                     type="datetime-local"
+                    id="res-datetime"
+                    name="resDateTime"
                     value={resDateTime}
                     onChange={e => setResDateTime(e.target.value)}
                     className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white"

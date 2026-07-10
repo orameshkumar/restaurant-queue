@@ -78,20 +78,24 @@ function DiscountModal({ subtotal, onApply, onClose }) {
             </button>
           ))}
         </div>
-        <label className="block text-sm font-medium mb-1">
+        <label htmlFor="discount-amount" className="block text-sm font-medium mb-1">
           {type === 'percent' ? 'Discount %' : 'Discount Amount (₹)'}
         </label>
         <input
           type="number"
+          id="discount-amount"
+          name="discountAmount"
           min="0"
           max={type === 'percent' ? 100 : subtotal}
           className="w-full border rounded-lg p-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           value={value}
           onChange={(e) => setValue(e.target.value)}
         />
-        <label className="block text-sm font-medium mb-1">Reason</label>
+        <label htmlFor="discount-reason" className="block text-sm font-medium mb-1">Reason</label>
         <input
           type="text"
+          id="discount-reason"
+          name="discountReason"
           className="w-full border rounded-lg p-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           placeholder="e.g. Loyalty, Manager approval…"
           value={reason}
@@ -129,9 +133,11 @@ function SplitModal({ total, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm">
         <h3 className="text-lg font-semibold mb-4">Split Bill Equally</h3>
-        <label className="block text-sm font-medium mb-1">Number of Guests</label>
+        <label htmlFor="split-guests" className="block text-sm font-medium mb-1">Number of Guests</label>
         <input
           type="number"
+          id="split-guests"
+          name="splitGuests"
           min="1"
           className="w-full border rounded-lg p-2 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-indigo-400"
           value={guests}
@@ -674,6 +680,8 @@ export default function Cashier() {
                 {tipOption === 'custom' && (
                   <input
                     type="number"
+                    id="tip-custom"
+                    name="tipCustom"
                     min="0"
                     className="mt-3 w-36 border rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
                     placeholder="Amount (₹)"

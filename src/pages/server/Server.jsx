@@ -160,6 +160,8 @@ function AddItemsModal({ tableId, tableStatus, onClose }) {
                         <div className="mt-2">
                           <input
                             type="text"
+                            id="server-special-instructions"
+                            name="specialInstructions"
                             placeholder="Special instructions (optional)"
                             value={instructions[item.id] ?? ''}
                             onChange={(e) => setInstructions((p) => ({ ...p, [item.id]: e.target.value }))}
@@ -230,6 +232,8 @@ function HandoffModal({ table, onClose }) {
         <div className="px-5 py-4 space-y-3">
           <p className="text-sm text-gray-600">Transfer this table to another server:</p>
           <select
+            id="server-handoff-select"
+            name="handoffServer"
             value={selectedId}
             onChange={(e) => setSelectedId(e.target.value)}
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"

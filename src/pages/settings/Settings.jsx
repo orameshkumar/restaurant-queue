@@ -129,9 +129,10 @@ export default function Settings() {
         <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">General</h2>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Restaurant Name</label>
+            <label htmlFor="settings-restaurant-name" className="block text-sm font-medium text-gray-700 mb-1">Restaurant Name</label>
             <input
               type="text"
+              id="settings-restaurant-name"
               name="restaurantName"
               value={form.restaurantName}
               onChange={handleChange}
@@ -140,8 +141,9 @@ export default function Settings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Address</label>
+            <label htmlFor="settings-address" className="block text-sm font-medium text-gray-700 mb-1">Address</label>
             <textarea
+              id="settings-address"
               name="address"
               value={form.address}
               onChange={handleChange}
@@ -150,9 +152,10 @@ export default function Settings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+            <label htmlFor="settings-phone" className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
             <input
               type="tel"
+              id="settings-phone"
               name="phone"
               value={form.phone}
               onChange={handleChange}
@@ -160,9 +163,10 @@ export default function Settings() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Self-Service URL</label>
+            <label htmlFor="settings-url" className="block text-sm font-medium text-gray-700 mb-1">Self-Service URL</label>
             <input
               type="url"
+              id="settings-url"
               name="selfServiceUrl"
               value={form.selfServiceUrl}
               onChange={handleChange}
@@ -177,8 +181,9 @@ export default function Settings() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Financial</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
+              <label htmlFor="settings-currency" className="block text-sm font-medium text-gray-700 mb-1">Currency</label>
               <select
+                id="settings-currency"
                 name="currency"
                 value={form.currency}
                 onChange={handleChange}
@@ -190,9 +195,10 @@ export default function Settings() {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
+              <label htmlFor="settings-tax-rate" className="block text-sm font-medium text-gray-700 mb-1">Tax Rate (%)</label>
               <input
                 type="number"
+                id="settings-tax-rate"
                 name="taxRate"
                 value={form.taxRate}
                 onChange={handleChange}
@@ -222,9 +228,10 @@ export default function Settings() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Payment / UPI</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">UPI ID (VPA)</label>
+              <label htmlFor="settings-upi-id" className="block text-sm font-medium text-gray-700 mb-1">UPI ID (VPA)</label>
               <input
                 type="text"
+                id="settings-upi-id"
                 name="upiId"
                 value={form.upiId}
                 onChange={handleChange}
@@ -234,9 +241,10 @@ export default function Settings() {
               <p className="text-xs text-gray-400 mt-1">e.g. restaurantname@okaxis</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Merchant ID</label>
+              <label htmlFor="settings-merchant-id" className="block text-sm font-medium text-gray-700 mb-1">Merchant ID</label>
               <input
                 type="text"
+                id="settings-merchant-id"
                 name="merchantId"
                 value={form.merchantId}
                 onChange={handleChange}
@@ -254,9 +262,10 @@ export default function Settings() {
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Reservations</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Grace Period (minutes)</label>
+              <label htmlFor="settings-grace-period" className="block text-sm font-medium text-gray-700 mb-1">Grace Period (minutes)</label>
               <input
                 type="number"
+                id="settings-grace-period"
                 name="reservationGracePeriod"
                 value={form.reservationGracePeriod}
                 onChange={handleChange}
@@ -265,9 +274,10 @@ export default function Settings() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Max Advance Booking (days)</label>
+              <label htmlFor="settings-max-booking-days" className="block text-sm font-medium text-gray-700 mb-1">Max Advance Booking (days)</label>
               <input
                 type="number"
+                id="settings-max-booking-days"
                 name="maxAdvanceBookingDays"
                 value={form.maxAdvanceBookingDays}
                 onChange={handleChange}
@@ -289,9 +299,11 @@ export default function Settings() {
             <div className="space-y-3">
               {EWT_SECTIONS.map((section) => (
                 <div key={section} className="flex items-center justify-between gap-4">
-                  <label className="text-sm text-gray-700 w-40">{section}</label>
+                  <label htmlFor={`settings-ewt-${section.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`} className="text-sm text-gray-700 w-40">{section}</label>
                   <input
                     type="number"
+                    id={`settings-ewt-${section.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                    name={`sectionEwt_${section}`}
                     min={5}
                     max={180}
                     step={5}
@@ -331,18 +343,22 @@ export default function Settings() {
                   {!hours.closed && (
                     <>
                       <div className="flex items-center gap-1.5">
-                        <label className="text-xs text-gray-400">Open</label>
+                        <label htmlFor={`settings-open-${day.toLowerCase()}`} className="text-xs text-gray-400">Open</label>
                         <input
                           type="time"
+                          id={`settings-open-${day.toLowerCase()}`}
+                          name={`openTime_${day}`}
                           value={hours.openTime || '09:00'}
                           onChange={(e) => handleHoursChange(day, 'openTime', e.target.value)}
                           className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"
                         />
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <label className="text-xs text-gray-400">Close</label>
+                        <label htmlFor={`settings-close-${day.toLowerCase()}`} className="text-xs text-gray-400">Close</label>
                         <input
                           type="time"
+                          id={`settings-close-${day.toLowerCase()}`}
+                          name={`closeTime_${day}`}
                           value={hours.closeTime || '22:00'}
                           onChange={(e) => handleHoursChange(day, 'closeTime', e.target.value)}
                           className="border border-gray-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-indigo-400"

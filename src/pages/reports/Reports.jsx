@@ -63,12 +63,12 @@ function DateRangePicker({ preset, setPreset, customFrom, setCustomFrom, customT
       </div>
       {preset === 'custom' && (
         <div className="flex flex-wrap items-center gap-2">
-          <input type="date" value={customFrom}
+          <input type="date" id="report-date-from" name="dateFrom" value={customFrom}
             onChange={e => { setCustomFrom(e.target.value); onReset(); }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />
           <span className="text-gray-400 text-sm">to</span>
-          <input type="date" value={customTo}
+          <input type="date" id="report-date-to" name="dateTo" value={customTo}
             onChange={e => { setCustomTo(e.target.value); onReset(); }}
             className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
           />

@@ -708,11 +708,12 @@ export default function Menu() {
             <form onSubmit={handleSave} className="px-6 py-5 space-y-4">
               {/* Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="menu-item-name" className="block text-sm font-medium text-gray-700 mb-1">
                   Item Name <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
+                  id="menu-item-name"
                   name="name"
                   value={form.name}
                   onChange={handleFormChange}
@@ -725,8 +726,9 @@ export default function Menu() {
               {/* Category + Dietary */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Category</label>
+                  <label htmlFor="menu-category" className="block text-sm font-medium text-gray-700 mb-1">Category</label>
                   <select
+                    id="menu-category"
                     name="category"
                     value={form.category}
                     onChange={handleFormChange}
@@ -738,10 +740,11 @@ export default function Menu() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="menu-dietary" className="block text-sm font-medium text-gray-700 mb-1">
                     Dietary Type
                   </label>
                   <select
+                    id="menu-dietary"
                     name="dietaryType"
                     value={form.dietaryType}
                     onChange={handleFormChange}
@@ -757,11 +760,12 @@ export default function Menu() {
               {/* Price + Prep Time */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="menu-price" className="block text-sm font-medium text-gray-700 mb-1">
                     Price (₹) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
+                    id="menu-price"
                     name="price"
                     value={form.price}
                     onChange={handleFormChange}
@@ -772,11 +776,12 @@ export default function Menu() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label htmlFor="menu-prep-time" className="block text-sm font-medium text-gray-700 mb-1">
                     Prep Time (min) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
+                    id="menu-prep-time"
                     name="prepTime"
                     value={form.prepTime}
                     onChange={handleFormChange}
@@ -790,8 +795,9 @@ export default function Menu() {
 
               {/* Station */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Station</label>
+                <label htmlFor="menu-station" className="block text-sm font-medium text-gray-700 mb-1">Station</label>
                 <select
+                  id="menu-station"
                   name="station"
                   value={form.station}
                   onChange={handleFormChange}
@@ -805,10 +811,11 @@ export default function Menu() {
 
               {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="menu-description" className="block text-sm font-medium text-gray-700 mb-1">
                   Description
                 </label>
                 <textarea
+                  id="menu-description"
                   name="description"
                   value={form.description}
                   onChange={handleFormChange}
@@ -820,11 +827,12 @@ export default function Menu() {
 
               {/* Calories */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="menu-calories" className="block text-sm font-medium text-gray-700 mb-1">
                   Calories <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
                 <input
                   type="number"
+                  id="menu-calories"
                   name="calories"
                   value={form.calories}
                   onChange={handleFormChange}

@@ -85,11 +85,12 @@ export default function QueueJoin() {
 
         <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="join-name" className="block text-sm font-medium text-gray-700 mb-1">
               Full Name <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
+              id="join-name"
               name="guestName"
               required
               autoComplete="name"
@@ -101,11 +102,12 @@ export default function QueueJoin() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="join-mobile" className="block text-sm font-medium text-gray-700 mb-1">
               Mobile Number <span className="text-gray-400 font-normal text-xs">(optional)</span>
             </label>
             <input
               type="tel"
+              id="join-mobile"
               name="mobile"
               autoComplete="tel"
               value={form.mobile}
@@ -138,6 +140,7 @@ export default function QueueJoin() {
             {form.partySize > 8 && (
               <input
                 type="number"
+                id="join-party-size"
                 name="partySize"
                 min={1}
                 value={form.partySize}
