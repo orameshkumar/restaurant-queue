@@ -212,7 +212,11 @@ function HandoffModal({ table, onClose }) {
     if (!selectedId) { toast.error('Select a server'); return; }
     setSaving(true);
     try {
-      await updateDoc(doc(db, 'tables', table.id), { assignedServerId: selectedId });
+      const serverDoc = staffList.find(s => s.id === selectedId);
+      await updateDoc(doc(db, 'tables', table.id), {
+        assignedServerId:   selectedId,
+        assignedServerName: serverDoc?.name ?? null,
+      });
       toast.success('Table handed off');
       onClose();
     } catch (err) {
