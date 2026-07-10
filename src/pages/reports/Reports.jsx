@@ -4,7 +4,7 @@ import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore
 import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useCollection } from '../../hooks/useCollection';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 
 const RANGE_OPTIONS = [
