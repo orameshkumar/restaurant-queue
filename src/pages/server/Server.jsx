@@ -1,11 +1,41 @@
 import { useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import QRCode from 'react-qr-code';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
 import PageHeader from '../../components/PageHeader';
 import TakeOrderModal from '../../components/TakeOrderModal';
+
+// ─── Guest QR Modal ───────────────────────────────────────────────────────────
+
+function GuestQRModal({ table, onClose }) {
+  const base = window.location.origin + import.meta.env.BASE_URL.replace(/\/$/, '');
+  const url  = `${base}/guest/${table.id}/${table.currentBookingId}`;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm text-center p-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-1">Table {table.tableNumber} — Guest Order</h2>
+        <p className="text-sm text-gray-500 mb-5">Share this QR with the guest to let them order from their phone</p>
+        <div className="flex justify-center mb-5 p-3 bg-white border border-gray-200 rounded-xl">
+          <QRCode value={url} size={180} />
+        </div>
+        <p className="text-xs text-gray-400 mb-5 break-all">{url}</p>
+        <div className="flex gap-3">
+          <button
+            onClick={() => navigator.clipboard?.writeText(url).then(() => toast.success('Link copied!'))}
+            className="flex-1 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 transition"
+          >📋 Copy Link</button>
+          <button
+            onClick={onClose}
+            className="flex-1 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium transition"
+          >Done</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -275,7 +305,7 @@ function BulkHandoffModal({ tables, onClose }) {
 
 // ─── Order Panel ─────────────────────────────────────────────────────────────
 
-function OrderPanel({ table, onRequestBill, onAddItems }) {
+function OrderPanel({ table, onRequestBill, onAddItems, onShowQR }) {
   // Fetch without orderBy to avoid composite index requirement — sort client-side
   const { docs: allOrderItems = [] } = useCollection(
     'orderItems',
@@ -346,7 +376,14 @@ function OrderPanel({ table, onRequestBill, onAddItems }) {
           <h2 className="text-xl font-bold text-gray-900">Table {table.tableNumber}</h2>
           <StatusBadge status={table.status} />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {table.currentBookingId && (
+            <button
+              onClick={() => onShowQR(table)}
+              className="px-3 py-1.5 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white text-sm font-semibold"
+              title="Show guest QR to order from phone"
+            >📲 Guest QR</button>
+          )}
           {table.status !== 'bill_requested' && (
             <button
               onClick={() => onRequestBill(table)}
@@ -480,6 +517,7 @@ export default function Server() {
 
   const [selectedTable, setSelectedTable]     = useState(null);
   const [addItemsTable, setAddItemsTable]     = useState(null);
+  const [qrTable, setQrTable]                = useState(null);
   const [showBulkHandoff, setShowBulkHandoff] = useState(false);
   const [checkedIds, setCheckedIds]           = useState(new Set());
 
@@ -598,6 +636,7 @@ export default function Server() {
                   table={liveSelectedTable}
                   onRequestBill={handleRequestBill}
                   onAddItems={(t) => setAddItemsTable(t)}
+                  onShowQR={(t) => setQrTable(t)}
                 />
               </div>
             ) : (
@@ -615,6 +654,12 @@ export default function Server() {
         <TakeOrderModal
           table={addItemsTable}
           onClose={() => setAddItemsTable(null)}
+        />
+      )}
+      {qrTable?.currentBookingId && (
+        <GuestQRModal
+          table={qrTable}
+          onClose={() => setQrTable(null)}
         />
       )}
       {showBulkHandoff && checkedTables.length > 0 && (
