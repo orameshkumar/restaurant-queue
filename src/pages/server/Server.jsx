@@ -590,11 +590,13 @@ export default function Server() {
       {/* DEBUG BAND — remove after diagnosis */}
       <div className="bg-yellow-50 border-b border-yellow-300 px-4 py-2 text-xs font-mono text-yellow-900 space-y-1">
         <div><strong>DEBUG</strong> — profile.id: <span className="text-blue-700">{profile?.id ?? 'null'}</span> · myTables count: <span className="text-blue-700">{myTables.length}</span></div>
-        <div>Active tables in Firestore: {debugTables.length === 0 ? 'none' : debugTables.map(t =>
-          <span key={t.id} className="inline-block mr-3">
-            T{t.tableNumber}[{t.status}] server=<span className={t.assignedServerId === profile?.id ? 'text-green-700 font-bold' : 'text-red-700'}>{t.assignedServerId ?? 'none'}</span>
-            {t.linkedTableId ? ` 🔗T${allTables.find(x=>x.id===t.linkedTableId)?.tableNumber??'?'}` : ''}
-          </span>
+        <div className="space-y-0.5">{debugTables.length === 0 ? 'No active tables' : debugTables.map(t =>
+          <div key={t.id}>
+            T{t.tableNumber}[{t.status}]
+            {' '}serverId=<span className={t.assignedServerId === profile?.id ? 'text-green-700 font-bold' : 'text-red-700'}>"{String(t.assignedServerId ?? '')}"</span>
+            {' '}serverName=<span className="text-purple-700">"{String(t.assignedServerName ?? '')}"</span>
+            {t.linkedTableId ? <span className="text-amber-700"> 🔗T{allTables.find(x=>x.id===t.linkedTableId)?.tableNumber??'?'}</span> : ''}
+          </div>
         )}</div>
       </div>
 
