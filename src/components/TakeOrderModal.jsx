@@ -19,7 +19,7 @@ export default function TakeOrderModal({ table, onClose }) {
     const q = query(collection(db, 'orders'), where('tableId', '==', table.id))
     return onSnapshot(q, snap => {
       const docs = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+        .map(d => ({ ...d.data(), id: d.id }))
         .filter(d => ['draft', 'new', 'preparing'].includes(d.status))
         .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
       setExistingOrders(docs)

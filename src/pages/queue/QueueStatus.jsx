@@ -23,7 +23,7 @@ export default function QueueStatus() {
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'bookings', bookingId), snap => {
       if (!snap.exists()) { setNotFound(true); setLoading(false); return }
-      const data = { id: snap.id, ...snap.data() }
+      const data = { ...snap.data(), id: snap.id }
       setBooking(data)
       setLoading(false)
 
@@ -54,7 +54,7 @@ export default function QueueStatus() {
       )
       const snap = await getDocs(q)
       const ahead = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+        .map(d => ({ ...d.data(), id: d.id }))
         .filter(b => b.id !== bookingId && (b.queueSequence ?? 0) < (booking.queueSequence ?? 0))
       setPosition(ahead.length + 1)
       setPersonsAhead(ahead.reduce((s, b) => s + (b.partySize || 2), 0))

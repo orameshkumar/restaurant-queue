@@ -33,7 +33,7 @@ export default function Orders() {
     const q = query(collection(db, 'orders'), where('status', 'in', ACTIVE_STATUSES))
     const unsub = onSnapshot(q, snap => {
       const docs = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+        .map(d => ({ ...d.data(), id: d.id }))
         .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
       setOrders(docs)
       setLoading(false)

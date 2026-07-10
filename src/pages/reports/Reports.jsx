@@ -106,8 +106,8 @@ function AnalyticsTab({ staffMap, currentUserId }) {
         getDocs(query(collection(db, 'bills'), where('closedAt', '>=', fromTs), where('closedAt', '<=', toTs))),
         getDocs(query(collection(db, 'orderItems'), where('firedAt', '>=', fromTs), where('firedAt', '<=', toTs))),
       ]);
-      setBills(billsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-      setOrderItems(itemsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setBills(billsSnap.docs.map(d => ({ ...d.data(), id: d.id })));
+      setOrderItems(itemsSnap.docs.map(d => ({ ...d.data(), id: d.id })));
       setGenerated(true);
     } catch (err) {
       console.error(err);
@@ -349,11 +349,11 @@ function BillsRegisterTab({ staffMap, currentUserId }) {
         getDocs(query(collection(db, 'tables'), where('status', 'in', ['bill_requested', 'occupied', 'ordering', 'eating']))),
       ]);
 
-      const settled = billsSnap.docs.map(d => ({ id: d.id, _source: 'bill', ...d.data() }));
+      const settled = billsSnap.docs.map(d => ({ ...d.data(), id: d.id, _source: 'bill' }));
 
       // Represent each active table with an outstanding bill as a synthetic row
       const pending = tablesSnap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+        .map(d => ({ ...d.data(), id: d.id }))
         .filter(t => t.seatedAt) // only tables currently occupied
         .map(t => ({
           id:          `table-${t.id}`,

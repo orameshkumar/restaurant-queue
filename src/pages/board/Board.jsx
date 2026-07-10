@@ -30,7 +30,7 @@ export default function Board() {
   useEffect(() => {
     const q = query(collection(db, 'bookings'), orderBy('queueSequence', 'asc'));
     const unsub = onSnapshot(q, (snap) => {
-      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      const docs = snap.docs.map((d) => ({ ...d.data(), id: d.id }));
       const filtered = docs.filter(
         (b) =>
           isToday(b.createdAt || b.date) &&

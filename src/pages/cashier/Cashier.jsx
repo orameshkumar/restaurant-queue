@@ -232,7 +232,7 @@ export default function Cashier() {
     });
     const q = query(collection(db, 'orders'), where('tableId', 'in', tableIds));
     const unsub = onSnapshot(q, snap => {
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const all = snap.docs.map(d => ({ ...d.data(), id: d.id }));
       const docs = all
         .filter(d => {
           if (['draft', 'rejected', 'billed'].includes(d.status)) return false;
@@ -259,7 +259,7 @@ export default function Cashier() {
     const q = query(collection(db, 'orderItems'), where('tableId', 'in', tableIds));
     const unsub = onSnapshot(q, snap => {
       const items = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+        .map(d => ({ ...d.data(), id: d.id }))
         .filter(d => {
           if (d.status === 'served') return false;
           if (liveSelectedTable.currentBookingId && d.bookingId && d.bookingId !== liveSelectedTable.currentBookingId) return false;

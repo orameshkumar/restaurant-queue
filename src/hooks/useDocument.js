@@ -9,7 +9,7 @@ export function useDocument(col, id) {
   useEffect(() => {
     if (!id) { setLoading(false); return }
     return onSnapshot(doc(db, col, id), (snap) => {
-      setDocument(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+      setDocument(snap.exists() ? { ...snap.data(), id: snap.id } : null)
       setLoading(false)
     })
   }, [col, id])

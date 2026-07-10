@@ -25,7 +25,7 @@ export function useEwt() {
   // Live subscription to tables
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'tables'), snap => {
-      setTables(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+      setTables(snap.docs.map(d => ({ ...d.data(), id: d.id })))
       setLoading(false)
     }, () => setLoading(false))
     return unsub

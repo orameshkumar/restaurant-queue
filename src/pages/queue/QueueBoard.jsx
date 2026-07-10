@@ -47,7 +47,7 @@ export default function QueueBoard() {
     return onSnapshot(q, snap => {
       setWaiting(
         snap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
+          .map(d => ({ ...d.data(), id: d.id }))
           .sort((a, b) => (a.queueSequence ?? 0) - (b.queueSequence ?? 0))
       )
     })
@@ -62,7 +62,7 @@ export default function QueueBoard() {
     )
     return onSnapshot(q, snap => {
       const all = snap.docs
-        .map(d => ({ id: d.id, ...d.data() }))
+        .map(d => ({ ...d.data(), id: d.id }))
         .sort((a, b) => (b.seatedAt?.seconds ?? 0) - (a.seatedAt?.seconds ?? 0))
       setSeated(all.slice(0, 5))
     })

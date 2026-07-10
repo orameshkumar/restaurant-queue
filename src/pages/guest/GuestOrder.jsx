@@ -30,7 +30,7 @@ export default function GuestOrder() {
         if (bSnap.exists()) setBooking({ id: bSnap.id, ...bSnap.data() })
 
         const mSnap = await getDocs(query(collection(db, 'menuItems'), where('available', '==', true)))
-        const items = mSnap.docs.map(d => ({ id: d.id, ...d.data() }))
+        const items = mSnap.docs.map(d => ({ ...d.data(), id: d.id }))
         items.sort((a, b) => (a.category ?? '').localeCompare(b.category ?? ''))
         setMenuItems(items)
       } catch (err) {

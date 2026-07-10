@@ -26,7 +26,7 @@ export default function QueueJoin() {
   // Live: filter out sections where all tables are blocked
   useEffect(() => {
     return onSnapshot(collection(db, 'tables'), snap => {
-      const tables = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      const tables = snap.docs.map(d => ({ ...d.data(), id: d.id }))
       const active = ALL_SECTIONS.filter(s => {
         const st = tables.filter(t => t.section === s)
         return st.length > 0 && st.some(t => t.status !== 'blocked')
