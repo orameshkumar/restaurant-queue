@@ -200,9 +200,9 @@ function AddItemsModal({ tableId, tableStatus, onClose }) {
   );
 }
 
-// ─── Handoff Modal ────────────────────────────────────────────────────────────
+// ─── Bulk Handoff Modal ───────────────────────────────────────────────────────
 
-function HandoffModal({ table, onClose }) {
+function BulkHandoffModal({ tables, onClose }) {
   const { docs: _allStaffHandoff = [] } = useCollection('staff', 'name', 'asc');
   const staffList = _allStaffHandoff.filter(s => s.role === 'server' && s.active !== false);
   const [selectedId, setSelectedId] = useState('');
@@ -213,11 +213,13 @@ function HandoffModal({ table, onClose }) {
     setSaving(true);
     try {
       const serverDoc = staffList.find(s => s.id === selectedId);
-      await updateDoc(doc(db, 'tables', table.id), {
-        assignedServerId:   selectedId,
-        assignedServerName: serverDoc?.name ?? null,
-      });
-      toast.success('Table handed off');
+      await Promise.all(tables.map(t =>
+        updateDoc(doc(db, 'tables', t.id), {
+          assignedServerId:   selectedId,
+          assignedServerName: serverDoc?.name ?? null,
+        })
+      ));
+      toast.success(`${tables.length} table(s) handed off to ${serverDoc?.name ?? 'server'}`);
       onClose();
     } catch (err) {
       console.error(err);
@@ -231,11 +233,20 @@ function HandoffModal({ table, onClose }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="text-lg font-bold text-gray-900">Handoff Table {table.tableNumber}</h2>
+          <h2 className="text-lg font-bold text-gray-900">Handoff Tables</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
         <div className="px-5 py-4 space-y-3">
-          <p className="text-sm text-gray-600">Transfer this table to another server:</p>
+          <p className="text-sm text-gray-600">
+            Transferring {tables.length === 1 ? `Table ${tables[0].tableNumber}` : `${tables.length} tables`} to:
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {tables.map(t => (
+              <span key={t.id} className="text-xs bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full font-medium">
+                T{t.tableNumber}
+              </span>
+            ))}
+          </div>
           <select
             id="server-handoff-select"
             name="handoffServer"
@@ -244,7 +255,7 @@ function HandoffModal({ table, onClose }) {
             className="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
           >
             <option value="">— Select server —</option>
-            {(staffList ?? []).map((s) => (
+            {staffList.map((s) => (
               <option key={s.id} value={s.id}>{s.name}</option>
             ))}
           </select>
@@ -255,7 +266,7 @@ function HandoffModal({ table, onClose }) {
             onClick={handleHandoff}
             disabled={saving || !selectedId}
             className="px-4 py-2 rounded-lg bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white text-sm font-semibold"
-          >{saving ? 'Saving…' : 'Handoff'}</button>
+          >{saving ? 'Saving…' : `Handoff ${tables.length > 1 ? `${tables.length} Tables` : 'Table'}`}</button>
         </div>
       </div>
     </div>
@@ -418,9 +429,21 @@ export default function Server() {
     return map;
   }, [allOrderItems, myTableIds.join(',')]);
 
-  const [selectedTable, setSelectedTable] = useState(null);
-  const [addItemsTable, setAddItemsTable]   = useState(null);
-  const [handoffTable, setHandoffTable]     = useState(null);
+  const [selectedTable, setSelectedTable]     = useState(null);
+  const [addItemsTable, setAddItemsTable]     = useState(null);
+  const [showBulkHandoff, setShowBulkHandoff] = useState(false);
+  const [checkedIds, setCheckedIds]           = useState(new Set());
+
+  function toggleCheck(tableId, e) {
+    e.stopPropagation();
+    setCheckedIds(prev => {
+      const next = new Set(prev);
+      next.has(tableId) ? next.delete(tableId) : next.add(tableId);
+      return next;
+    });
+  }
+
+  const checkedTables = myTables.filter(t => checkedIds.has(t.id));
 
   // Keep selectedTable in sync with live data
   const liveSelectedTable = myTables.find((t) => t.id === selectedTable?.id) ?? selectedTable;
@@ -451,12 +474,22 @@ export default function Server() {
           {/* ── Left: My Tables ── */}
           <div className="lg:col-span-1">
             <div className="bg-white rounded-2xl shadow-sm border p-4">
-              <h2 className="text-base font-bold text-gray-800 mb-3">
-                My Tables
-                {myTables.length > 0 && (
-                  <span className="ml-2 text-sm font-normal text-gray-400">({myTables.length})</span>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-bold text-gray-800">
+                  My Tables
+                  {myTables.length > 0 && (
+                    <span className="ml-2 text-sm font-normal text-gray-400">({myTables.length})</span>
+                  )}
+                </h2>
+                {checkedIds.size > 0 && (
+                  <button
+                    onClick={() => setShowBulkHandoff(true)}
+                    className="text-xs px-3 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition"
+                  >
+                    Handoff {checkedIds.size} selected
+                  </button>
                 )}
-              </h2>
+              </div>
 
               {myTables.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-10">No active tables assigned</p>
@@ -464,6 +497,7 @@ export default function Server() {
                 <div className="space-y-2">
                   {myTables.map((table) => {
                     const isSelected = selectedTable?.id === table.id;
+                    const isChecked  = checkedIds.has(table.id);
                     const pending = pendingByTable[table.id] ?? 0;
                     return (
                       <div
@@ -476,25 +510,28 @@ export default function Server() {
                         }`}
                       >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold text-gray-900 text-sm">
-                            Table {table.tableNumber}
-                            {table.section ? <span className="ml-1 text-xs font-normal text-gray-500">· {table.section}</span> : null}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => toggleCheck(table.id, e)}
+                              onClick={(e) => e.stopPropagation()}
+                              className="h-4 w-4 rounded border-gray-300 text-orange-500 focus:ring-orange-400 cursor-pointer"
+                            />
+                            <span className="font-bold text-gray-900 text-sm">
+                              Table {table.tableNumber}
+                              {table.section ? <span className="ml-1 text-xs font-normal text-gray-500">· {table.section}</span> : null}
+                            </span>
+                          </div>
                           <StatusBadge status={table.status} />
                         </div>
-                        <div className="flex items-center justify-between text-xs text-gray-500">
+                        <div className="flex items-center justify-between text-xs text-gray-500 pl-6">
                           <span>👥 {table.partySize ?? '—'} guests · ⏱ {timeSince(table.seatedAt)}</span>
                           {pending > 0 && (
                             <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
                               {pending}
                             </span>
                           )}
-                        </div>
-                        <div className="mt-2 flex justify-end">
-                          <button
-                            onClick={(e) => { e.stopPropagation(); setHandoffTable(table); }}
-                            className="text-xs text-gray-400 hover:text-gray-600 underline"
-                          >Handoff</button>
                         </div>
                       </div>
                     );
@@ -531,10 +568,10 @@ export default function Server() {
           onClose={() => setAddItemsTable(null)}
         />
       )}
-      {handoffTable && (
-        <HandoffModal
-          table={handoffTable}
-          onClose={() => setHandoffTable(null)}
+      {showBulkHandoff && checkedTables.length > 0 && (
+        <BulkHandoffModal
+          tables={checkedTables}
+          onClose={() => { setShowBulkHandoff(false); setCheckedIds(new Set()); }}
         />
       )}
     </div>
