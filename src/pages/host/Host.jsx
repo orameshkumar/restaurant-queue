@@ -599,7 +599,7 @@ function TableCard({ table, waitingBookings, availableTables = [], hasReadyItems
 
         <div className="flex items-center gap-4 text-sm text-gray-600">
           <span>👥 {table.capacity}</span>
-          {table.assignedServer && <span>🧑‍🍳 {table.assignedServer}</span>}
+          {table.assignedServerName && <span className="text-blue-600">🧑‍🍳 {table.assignedServerName}</span>}
           {elapsed && <span className="text-amber-600">⏱ {elapsed}</span>}
           {table.linkedTableId && <span className="text-xs text-amber-600 font-medium">🔗 Linked</span>}
           {hasReadyItems && (
