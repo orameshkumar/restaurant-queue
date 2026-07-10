@@ -284,13 +284,17 @@ function OrderPanel({ table, onRequestBill, onAddItems }) {
     [['tableId', '==', table.id]]
   );
 
-  // Only show items from the current sitting — filter by seatedAt so previous
-  // guests' orders don't bleed through after billing and re-seating
+  // Isolate current sitting's items.
+  // Primary: match by bookingId (exact, written by TakeOrderModal).
+  // Fallback: seatedAt fence for items missing bookingId.
+  // If table has no active booking at all, show nothing.
+  const currentBookingId = table.currentBookingId ?? null;
   const seatedAtSecs = table.seatedAt?.seconds ?? 0;
-  const orderItems = (seatedAtSecs > 0
-    ? allOrderItems.filter(i => (i.firedAt?.seconds ?? 0) >= seatedAtSecs)
-    : allOrderItems
-  ).slice().sort((a, b) => (a.firedAt?.seconds ?? 0) - (b.firedAt?.seconds ?? 0));
+  const orderItems = allOrderItems.filter(i => {
+    if (i.bookingId) return i.bookingId === currentBookingId;
+    if (seatedAtSecs > 0) return (i.firedAt?.seconds ?? 0) >= seatedAtSecs;
+    return false;
+  }).slice().sort((a, b) => (a.firedAt?.seconds ?? 0) - (b.firedAt?.seconds ?? 0));
 
   const ready      = orderItems.filter((i) => i.status === 'ready');
   const inKitchen  = orderItems.filter((i) => ['in-kitchen', 'in-preparation'].includes(i.status));
