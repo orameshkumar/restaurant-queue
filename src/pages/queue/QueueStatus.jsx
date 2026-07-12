@@ -1,23 +1,31 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
-import { doc, onSnapshot, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, onSnapshot, collection, query, where, getDocs, getDoc } from 'firebase/firestore'
 import { db } from '../../firebase/config'
 import { useEwt } from '../../hooks/useEwt'
 
 const TODAY = new Date().toISOString().split('T')[0]
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, '')
 
 export default function QueueStatus() {
   const { bookingId } = useParams()
   const { calcEwt } = useEwt()
-  const [booking, setBooking]     = useState(null)
+  const [booking, setBooking]         = useState(null)
   const [position, setPosition]       = useState(null)
   const [personsAhead, setPersonsAhead] = useState(0)
-  const [loading, setLoading]     = useState(true)
-  const [notFound, setNotFound]   = useState(false)
-  const [seated, setSeated]       = useState(false)
-  const [countdown, setCountdown] = useState(8)
+  const [loading, setLoading]         = useState(true)
+  const [notFound, setNotFound]       = useState(false)
+  const [seated, setSeated]           = useState(false)
   const [tableNumber, setTableNumber] = useState(null)
-  const [closeFailed, setCloseFailed] = useState(false)
+  const [tableId, setTableId]         = useState(null)
+  const [autoFire, setAutoFire]       = useState(false)
+
+  // Load autoFireGuestOrders config once
+  useEffect(() => {
+    getDoc(doc(db, 'restaurantSettings', 'main')).then(snap => {
+      if (snap.exists()) setAutoFire(snap.data().autoFireGuestOrders === true)
+    })
+  }, [])
 
   // Live listener on this booking
   useEffect(() => {
@@ -27,15 +35,11 @@ export default function QueueStatus() {
       setBooking(data)
       setLoading(false)
 
-      if (data.status === 'seated') {
-        // Fetch table number if available
-        if (data.tableId) {
-          import('firebase/firestore').then(({ getDoc, doc: fdoc }) => {
-            getDoc(fdoc(db, 'tables', data.tableId)).then(t => {
-              if (t.exists()) setTableNumber(t.data().tableNumber)
-            })
-          })
-        }
+      if (data.status === 'seated' && data.tableId) {
+        setTableId(data.tableId)
+        getDoc(doc(db, 'tables', data.tableId)).then(t => {
+          if (t.exists()) setTableNumber(t.data().tableNumber)
+        })
         setSeated(true)
       }
     })
@@ -66,18 +70,6 @@ export default function QueueStatus() {
     return () => clearInterval(t)
   }, [booking, seated, bookingId])
 
-  // Countdown + close when seated
-  useEffect(() => {
-    if (!seated) return
-    if (countdown <= 0) {
-      window.close()
-      // If close was blocked (QR-scanned tabs), show manual close message after 300ms
-      const t = setTimeout(() => setCloseFailed(true), 300)
-      return () => clearTimeout(t)
-    }
-    const t = setTimeout(() => setCountdown(c => c - 1), 1000)
-    return () => clearTimeout(t)
-  }, [seated, countdown])
 
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) return (
@@ -97,37 +89,73 @@ export default function QueueStatus() {
   )
 
   // ── Seated / table assigned ──────────────────────────────────────────────
-  if (seated) return (
-    <div className="min-h-screen bg-green-50 flex items-center justify-center p-6">
-      <div className="text-center max-w-sm">
-        <p className="text-6xl mb-4">🎉</p>
-        <h2 className="text-2xl font-bold text-green-800 mb-2">Your table is ready!</h2>
-        {tableNumber && (
-          <p className="text-lg font-semibold text-green-700 mb-2">
-            Please proceed to <span className="text-2xl font-bold">Table {tableNumber}</span>
-          </p>
-        )}
-        <p className="text-sm text-green-600 mb-6">
-          Welcome, {booking?.guestName}! Enjoy your meal.
-        </p>
-        {closeFailed ? (
-          <p className="text-sm font-semibold text-gray-600 bg-white border border-gray-200 rounded-xl px-4 py-3">
-            You can now close this tab 👆
-          </p>
-        ) : (
-          <p className="text-xs text-gray-400">
-            This page will close in <span className="font-semibold text-red-500">{countdown}</span> second{countdown !== 1 ? 's' : ''}…
-          </p>
-        )}
-        <button
-          onClick={() => { window.close(); setTimeout(() => setCloseFailed(true), 300) }}
-          className="mt-4 px-5 py-2 bg-green-600 text-white rounded-full text-sm font-medium hover:bg-green-700 transition"
-        >
-          Close Tab
-        </button>
+  if (seated) {
+    const orderUrl = tableId ? `${window.location.origin}${BASE}/guest/${tableId}/${bookingId}` : null
+    return (
+      <div className="min-h-screen bg-green-50 flex items-center justify-center p-6">
+        <div className="w-full max-w-sm space-y-5">
+
+          {/* Header */}
+          <div className="text-center">
+            <p className="text-6xl mb-3">🎉</p>
+            <h2 className="text-2xl font-bold text-green-800">Your table is ready!</h2>
+            {tableNumber && (
+              <p className="text-lg font-semibold text-green-700 mt-1">
+                Please proceed to <span className="text-3xl font-black text-green-800">Table {tableNumber}</span>
+              </p>
+            )}
+            <p className="text-sm text-green-600 mt-1">Welcome, {booking?.guestName}!</p>
+          </div>
+
+          {/* Token */}
+          <div className="flex justify-center">
+            <div className="inline-flex flex-col items-center bg-white rounded-2xl shadow-sm px-8 py-4 border border-green-200">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">Your Token</p>
+              <span className="text-3xl font-black text-amber-500">{booking?.token ?? '—'}</span>
+            </div>
+          </div>
+
+          {/* Order food button */}
+          {orderUrl && (
+            <div className="bg-white rounded-2xl shadow-sm border p-5 space-y-3">
+              {autoFire ? (
+                <>
+                  <a
+                    href={orderUrl}
+                    className="flex items-center justify-center gap-2 w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-base transition"
+                  >
+                    🍽️ Order Food Now
+                  </a>
+                  <div className="flex gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                    <span className="text-amber-500 text-sm flex-shrink-0">⚡</span>
+                    <p className="text-xs text-amber-800 leading-relaxed">
+                      <strong>Orders go straight to the kitchen.</strong> Please review your items carefully on the next screen before confirming — orders cannot be cancelled once sent.
+                    </p>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <a
+                    href={orderUrl}
+                    className="flex items-center justify-center gap-2 w-full py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-base transition"
+                  >
+                    🍽️ Browse Menu & Order
+                  </a>
+                  <div className="flex gap-2 bg-indigo-50 border border-indigo-200 rounded-xl px-3 py-2.5">
+                    <span className="text-indigo-400 text-sm flex-shrink-0">ℹ️</span>
+                    <p className="text-xs text-indigo-800 leading-relaxed">
+                      Your order will be sent to your server for review before going to the kitchen. Feel free to add notes or ask for changes.
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   // ── Cancelled / removed ─────────────────────────────────────────────────
   if (booking?.status === 'cancelled') return (
