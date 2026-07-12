@@ -109,11 +109,15 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
         <span className={`text-xs font-medium ${overdue ? 'text-red-600 font-bold' : 'text-gray-400'}`}>
           {timeAgo(item.firedAt)}{overdue && ' ⚠ LATE'}
         </span>
-        {claimedByName && (
+        {claimedByName ? (
           <span className="text-xs bg-blue-100 text-blue-700 rounded-full px-2 py-0.5 truncate max-w-[120px]">
             👨‍🍳 {claimedByName}
           </span>
-        )}
+        ) : item.source === 'guest' ? (
+          <span className="text-xs bg-amber-100 text-amber-700 rounded-full px-2 py-0.5 truncate max-w-[120px]">
+            👤 {item.guestName ?? 'Guest'}
+          </span>
+        ) : null}
       </div>
       <div className="flex gap-2 mt-1 flex-wrap">
         {(item.status === 'placed' || item.status === 'in-kitchen') && !item.claimedByChefId && (
