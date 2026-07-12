@@ -240,13 +240,19 @@ function BatchCard({ batch, tables, currentProfile, tick }) {
 
       {/* Per-table breakdown */}
       <div className="flex flex-col gap-1">
-        {batch.tableBreakdown.map(({ tableId, tableNumber, qty, statuses }) => {
+        {batch.tableBreakdown.map(({ tableId, tableNumber, qty, statuses, source, guestName }) => {
           const hasReady  = statuses.includes('ready');
           const hasPrep   = statuses.includes('in-preparation');
-          const isPending = statuses.every(s => s === 'placed' || s === 'in-kitchen');
           return (
             <div key={tableId} className="flex items-center justify-between text-xs px-2 py-1 rounded-lg bg-gray-50">
-              <span className="font-medium text-gray-700">Table {tableNumber ?? '?'}</span>
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-medium text-gray-700">Table {tableNumber ?? '?'}</span>
+                {source === 'guest' && guestName && (
+                  <span className="bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 truncate max-w-[80px]">
+                    👤 {guestName}
+                  </span>
+                )}
+              </div>
               <div className="flex items-center gap-2">
                 <span className="text-gray-500">×{qty}</span>
                 <span className={`px-1.5 py-0.5 rounded-full font-medium ${
@@ -326,7 +332,7 @@ function BatchView({ filteredItems, tables, currentProfile, tick }) {
       batch.items.forEach(item => {
         if (!byTable[item.tableId]) {
           const t = tables.find(t => t.id === item.tableId);
-          byTable[item.tableId] = { tableId: item.tableId, tableNumber: t?.tableNumber, qty: 0, statuses: [] };
+          byTable[item.tableId] = { tableId: item.tableId, tableNumber: t?.tableNumber, qty: 0, statuses: [], source: item.source, guestName: item.guestName ?? null };
         }
         byTable[item.tableId].qty += item.qty ?? 1;
         byTable[item.tableId].statuses.push(item.status);

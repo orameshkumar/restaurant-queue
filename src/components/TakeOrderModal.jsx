@@ -134,6 +134,8 @@ export default function TakeOrderModal({ table, onClose }) {
         newEntries.map(({ item, qty }) =>
           addDoc(collection(db, 'orderItems'), {
             tableId:              table.id,
+            tableNumber:          table.tableNumber ?? null,
+            bookingId:            table.currentBookingId ?? null,
             orderId:              orderRef.id,
             menuItemId:           item.id,
             name:                 item.name,
@@ -144,6 +146,8 @@ export default function TakeOrderModal({ table, onClose }) {
             modifiers:            [],
             specialInstructions:  instructions[item.id] ?? '',
             status:               'placed',
+            source:               'staff',
+            guestName:            null,
             firedAt:              serverTimestamp(),
             servedAt:             null,
             claimedByChefId:      null,
@@ -177,8 +181,9 @@ export default function TakeOrderModal({ table, onClose }) {
         (order.items ?? []).map(item =>
           addDoc(collection(db, 'orderItems'), {
             tableId:             order.tableId,
-            orderId:             order.id,
+            tableNumber:         order.tableNumber ?? null,
             bookingId:           order.bookingId ?? null,
+            orderId:             order.id,
             menuItemId:          item.menuItemId ?? null,
             name:                item.name,
             category:            item.category ?? 'Uncategorized',
@@ -188,6 +193,8 @@ export default function TakeOrderModal({ table, onClose }) {
             modifiers:           [],
             specialInstructions: item.specialInstructions ?? '',
             status:              'placed',
+            source:              order.source ?? 'guest',
+            guestName:           order.guestName ?? null,
             firedAt:             serverTimestamp(),
             servedAt:            null,
             claimedByChefId:     null,

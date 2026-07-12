@@ -73,7 +73,9 @@ function StatusBadge({ status }) {
 
 // ─── Add Items Modal ─────────────────────────────────────────────────────────
 
-function AddItemsModal({ tableId, tableStatus, onClose }) {
+// AddItemsModal removed — TakeOrderModal handles all server order entry
+
+function _AddItemsModal_UNUSED({ tableId, tableStatus, onClose }) {
   const { docs: menuItems = [] } = useCollection('menuItems', 'name', 'asc', [['available', '==', true]]);
 
   const grouped = useMemo(() => {
@@ -235,6 +237,7 @@ function AddItemsModal({ tableId, tableStatus, onClose }) {
 function BulkHandoffModal({ tables, onClose }) {
   const { docs: _allStaffHandoff = [] } = useCollection('staff', 'name', 'asc');
   const staffList = _allStaffHandoff.filter(s => s.role === 'server' && s.active !== false);
+  const staffNameMap = useMemo(() => Object.fromEntries(_allStaffHandoff.map(s => [s.id, s.name])), [_allStaffHandoff]);
   const [selectedId, setSelectedId] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -344,6 +347,7 @@ function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onSh
   }
 
   function ItemRow({ item, actions }) {
+    const chefName = item.claimedByChefId ? (staffNameMap[item.claimedByChefId] ?? 'Chef') : null;
     return (
       <div className="flex items-start justify-between gap-3 py-2">
         <div className="flex-1 min-w-0">
@@ -357,8 +361,11 @@ function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onSh
           {item.specialInstructions && (
             <p className="text-xs italic text-gray-400 mt-0.5">"{item.specialInstructions}"</p>
           )}
-          {item.claimedByChefId && (
-            <p className="text-xs text-blue-500 mt-0.5">Chef: {item.claimedByChefId}</p>
+          {chefName && (
+            <p className="text-xs text-blue-500 mt-0.5">👨‍🍳 {chefName}</p>
+          )}
+          {!chefName && item.source === 'guest' && item.guestName && (
+            <p className="text-xs text-amber-600 mt-0.5">👤 {item.guestName}</p>
           )}
         </div>
         {actions}
