@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
+import { useDocument } from '../../hooks/useDocument';
 import { useEwt } from '../../hooks/useEwt';
 import { generateToken } from '../../utils/generateToken';
 import PageHeader from '../../components/PageHeader';
@@ -503,7 +504,7 @@ function QRCodeModal({ tableId, bookingId, tableNumber, guestName, onClose }) {
 
 // ─── Table Card ───────────────────────────────────────────────────────────────
 
-function TableCard({ table, waitingBookings, availableTables = [], allTables = [], hasReadyItems = false, allDelivered = false }) {
+function TableCard({ table, waitingBookings, availableTables = [], allTables = [], hasReadyItems = false, allDelivered = false, bestMatch = null, onQuickSeat = null }) {
   const [showAssign, setShowAssign] = useState(false);
   const [showOrder, setShowOrder] = useState(false);
   const [qrInfo, setQrInfo] = useState(null);
@@ -681,6 +682,25 @@ function TableCard({ table, waitingBookings, availableTables = [], allTables = [
             </button>
           )}
         </div>
+
+        {bestMatch && table.status === 'available' && (
+          <div className="mt-2 pt-2 border-t border-green-200 bg-green-50 rounded-b-xl -mx-3 -mb-3 px-3 pb-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-green-800 truncate">
+                  Next: {bestMatch.guestName} · {bestMatch.partySize}p
+                </p>
+                <p className="text-xs text-green-600 font-mono">#{bestMatch.token}</p>
+              </div>
+              <button
+                onClick={e => { e.stopPropagation(); onQuickSeat(bestMatch); }}
+                className="flex-shrink-0 text-xs px-2.5 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 font-semibold whitespace-nowrap"
+              >
+                Seat →
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {showAssign && (
@@ -721,6 +741,10 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
   const { docs: activeItems = [] } = useCollection('orderItems', null, null, [['status', 'in', ['placed','in-kitchen','in-preparation']]]);
   const { docs: servedItems = [] } = useCollection('orderItems', null, null, [['status', '==', 'served']]);
   const { docs: allStaff = [] } = useCollection('staff', 'name', 'asc');
+  const { document: restaurantSettings } = useDocument('restaurantSettings', 'main');
+
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [qrInfo, setQrInfo] = useState(null);
 
   // Auto-clear assignedServerId on tables where the server is inactive
   useEffect(() => {
@@ -757,6 +781,26 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
 
     return new Set([...currentServed].filter(tid => !activeSet.has(tid) && !readySet.has(tid)));
   }, [tables, activeItems, readyItems, servedItems]);
+
+  const autoAssignQueue = restaurantSettings?.autoAssignQueue ?? false;
+
+  const bestMatchMap = useMemo(() => {
+    if (!autoAssignQueue) return {};
+    const map = {};
+    const waiting = waitingBookings
+      .filter(b => b.status === 'waiting' && b.date === TODAY)
+      .sort((a, b) => (a.queueSequence ?? 0) - (b.queueSequence ?? 0));
+    tables.filter(t => t.status === 'available').forEach(t => {
+      const match = waiting.find(b => {
+        const size = b.partySize ?? 1;
+        if (size > (t.capacity ?? 99)) return false;
+        if (b.tablePreference && b.tablePreference !== 'Any' && b.tablePreference !== t.section) return false;
+        return true;
+      }) ?? waiting.find(b => (b.partySize ?? 1) <= (t.capacity ?? 99));
+      if (match) map[t.id] = match;
+    });
+    return map;
+  }, [autoAssignQueue, tables, waitingBookings]);
 
   const [statusFilter, setStatusFilter] = useState(initialFilter === 'occupied' ? 'occupied' : 'all');
 
@@ -824,12 +868,29 @@ function FloorPlanTab({ waitingBookings, initialFilter = 'all' }) {
                   allTables={tables}
                   hasReadyItems={readyTableIds.has(table.id)}
                   allDelivered={allDeliveredTableIds.has(table.id)}
+                  bestMatch={bestMatchMap[table.id] ?? null}
+                  onQuickSeat={(booking) => setAssignTarget(booking)}
                 />
               ))}
             </div>
           </div>
         );
       })}
+
+      {assignTarget && (
+        <AssignModal
+          table={null}
+          availableTables={tables.filter(t => t.status === 'available')}
+          waitingBookings={waitingBookings}
+          preselectedBookingId={assignTarget.id}
+          onClose={() => setAssignTarget(null)}
+          onAssigned={(info) => { setAssignTarget(null); setQrInfo(info); }}
+        />
+      )}
+
+      {qrInfo && (
+        <QRCodeModal {...qrInfo} onClose={() => setQrInfo(null)} />
+      )}
     </div>
   );
 }

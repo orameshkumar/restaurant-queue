@@ -20,6 +20,8 @@ const DEFAULT_SETTINGS = {
   selfServiceUrl: '',
   upiId: '',
   merchantId: '',
+  autoFireGuestOrders: false,
+  autoAssignQueue: false,
   sectionEwt: { Indoor: 30, Outdoor: 25, 'Bar & Lounge': 20, 'Private Dining': 45 },
   operatingHours: Object.fromEntries(
     DAYS.map((d) => [d, { openTime: '09:00', closeTime: '22:00', closed: false }])
@@ -369,6 +371,39 @@ export default function Settings() {
                 </div>
               );
             })}
+          </div>
+        </section>
+
+        {/* Ordering Automation */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Ordering Automation</h2>
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="settings-autofire"
+              name="autoFireGuestOrders"
+              checked={form.autoFireGuestOrders ?? false}
+              onChange={handleChange}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <div>
+              <label htmlFor="settings-autofire" className="text-sm font-medium text-gray-800">Auto-fire guest QR orders to kitchen</label>
+              <p className="text-xs text-gray-400 mt-0.5">When enabled, guests confirm their own orders directly to the kitchen. Server is notified but no approval needed.</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <input
+              type="checkbox"
+              id="settings-autoassign"
+              name="autoAssignQueue"
+              checked={form.autoAssignQueue ?? false}
+              onChange={handleChange}
+              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+            />
+            <div>
+              <label htmlFor="settings-autoassign" className="text-sm font-medium text-gray-800">Smart queue matching on floor plan</label>
+              <p className="text-xs text-gray-400 mt-0.5">When enabled, each available table shows the best-matched waiting guest with a one-click Seat button.</p>
+            </div>
           </div>
         </section>
 
