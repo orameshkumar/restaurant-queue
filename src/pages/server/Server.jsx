@@ -521,12 +521,36 @@ function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onSh
 
 export default function Server() {
   const { profile } = useAuth();
+  const isManagerRole = profile?.role === 'admin' || profile?.role === 'manager';
 
-  // My assigned tables — fetch all, filter client-side to avoid composite index requirement
   const activeStatuses = ['occupied', 'ordering', 'eating', 'bill_requested'];
   const visibleStatuses = [...activeStatuses, 'available', 'reserved', 'cleaning'];
   const { docs: allTables = [] } = useCollection('tables', 'tableNumber', 'asc');
+  const { docs: allStaff = [] } = useCollection('staff', 'name', 'asc');
+
+  // Manager filters
+  const [filterStaff, setFilterStaff]     = useState('');
+  const [filterSection, setFilterSection] = useState('');
+  const [filterStatus, setFilterStatus]   = useState('');
+
+  const serverList = useMemo(
+    () => allStaff.filter(s => s.active !== false),
+    [allStaff]
+  );
+  const sections = useMemo(
+    () => [...new Set(allTables.map(t => t.section).filter(Boolean))].sort(),
+    [allTables]
+  );
+
   const myTables = useMemo(() => {
+    if (isManagerRole) {
+      let tables = allTables.filter(t => visibleStatuses.includes(t.status));
+      if (filterStaff === '__unassigned__') tables = tables.filter(t => !t.assignedServerId);
+      else if (filterStaff) tables = tables.filter(t => t.assignedServerId === filterStaff);
+      if (filterSection) tables = tables.filter(t => t.section === filterSection);
+      if (filterStatus)  tables = tables.filter(t => t.status === filterStatus);
+      return tables.sort((a, b) => (a.tableNumber ?? 0) - (b.tableNumber ?? 0));
+    }
     const direct = allTables.filter(
       (t) => t.assignedServerId === profile?.id && visibleStatuses.includes(t.status)
     );
@@ -536,9 +560,8 @@ export default function Server() {
       .map(t => allTables.find(x => x.id === t.linkedTableId))
       .filter(Boolean)
       .filter(t => visibleStatuses.includes(t.status));
-    const result = [...direct, ...linkedPartners].sort((a, b) => (a.tableNumber ?? 0) - (b.tableNumber ?? 0));
-    return result;
-  }, [allTables, profile?.id]);
+    return [...direct, ...linkedPartners].sort((a, b) => (a.tableNumber ?? 0) - (b.tableNumber ?? 0));
+  }, [allTables, profile?.id, isManagerRole, filterStaff, filterSection, filterStatus]);
 
   // All order items for pending count (across my tables)
   const myTableIds = myTables.map((t) => t.id);
@@ -585,7 +608,7 @@ export default function Server() {
   }, [myTables.map(t => t.id + t.status).join(',')]);
 
   async function handleRequestBill(table) {
-    if (table.assignedServerId !== profile?.id) {
+    if (!isManagerRole && table.assignedServerId !== profile?.id) {
       toast.error('You are not assigned to this table.');
       return;
     }
@@ -601,8 +624,8 @@ export default function Server() {
   return (
     <div className="min-h-screen bg-gray-50">
       <PageHeader
-        title="My Tables"
-        subtitle={`Welcome, ${profile?.name ?? 'Server'}`}
+        title={isManagerRole ? 'Order Management' : 'My Tables'}
+        subtitle={isManagerRole ? 'All active tables — manager view' : `Welcome, ${profile?.name ?? 'Server'}`}
       />
 
       <div className="max-w-7xl mx-auto px-4 py-6">
@@ -612,7 +635,7 @@ export default function Server() {
             <div className="bg-white rounded-2xl shadow-sm border p-4">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-base font-bold text-gray-800">
-                  My Tables
+                  {isManagerRole ? 'All Tables' : 'My Tables'}
                   {myTables.length > 0 && (
                     <span className="ml-2 text-sm font-normal text-gray-400">({myTables.length})</span>
                   )}
@@ -626,6 +649,65 @@ export default function Server() {
                   </button>
                 )}
               </div>
+
+              {/* Manager filters */}
+              {isManagerRole && (
+                <div className="space-y-2 mb-3 pb-3 border-b border-gray-100">
+                  {/* Staff filter */}
+                  <select
+                    value={filterStaff}
+                    onChange={e => setFilterStaff(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                  >
+                    <option value="">👤 All Staff</option>
+                    {serverList.map(s => (
+                      <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+                    ))}
+                    <option value="__unassigned__">— Unassigned</option>
+                  </select>
+
+                  {/* Section chips */}
+                  {sections.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        onClick={() => setFilterSection('')}
+                        className={`text-xs px-2.5 py-1 rounded-full font-medium transition ${
+                          filterSection === '' ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >All</button>
+                      {sections.map(s => (
+                        <button
+                          key={s}
+                          onClick={() => setFilterSection(filterSection === s ? '' : s)}
+                          className={`text-xs px-2.5 py-1 rounded-full font-medium transition ${
+                            filterSection === s ? 'bg-orange-500 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                          }`}
+                        >{s}</button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Status filter */}
+                  <select
+                    value={filterStatus}
+                    onChange={e => setFilterStatus(e.target.value)}
+                    className="w-full text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-orange-300 bg-white"
+                  >
+                    <option value="">📋 All Statuses</option>
+                    {visibleStatuses.map(s => (
+                      <option key={s} value={s}>{s.replace('_', ' ')}</option>
+                    ))}
+                  </select>
+
+                  {/* Clear filters */}
+                  {(filterStaff || filterSection || filterStatus) && (
+                    <button
+                      onClick={() => { setFilterStaff(''); setFilterSection(''); setFilterStatus(''); }}
+                      className="text-xs text-orange-600 hover:text-orange-700 font-medium"
+                    >✕ Clear filters</button>
+                  )}
+                </div>
+              )}
 
               {myTables.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-10">No active tables assigned</p>
