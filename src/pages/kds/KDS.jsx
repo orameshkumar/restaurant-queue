@@ -142,12 +142,18 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
             Claimed by {claimedByName}
           </span>
         )}
-        {item.status === 'ready' && isManager && (
+        {item.status === 'ready' && (isClaimedByMe || isManager) && (
           <button onClick={handleBump} className="flex-1 bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold rounded-lg px-3 py-1.5 transition-colors">
-            Bump ✓
+            Pickup / Deliver ✓
           </button>
         )}
-        {item.claimedByChefId && (isClaimedByMe || isManager) && (
+        {item.status === 'ready' && !isClaimedByMe && !isManager && (
+          <span className="flex-1 text-center text-xs text-gray-500 bg-gray-100 rounded-lg px-3 py-1.5">
+            Waiting for pickup
+          </span>
+        )}
+        {/* Release only available while in-preparation — not once ready */}
+        {item.status === 'in-preparation' && item.claimedByChefId && (isClaimedByMe || isManager) && (
           <button onClick={handleRelease} title="Release item" className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-sm font-bold transition-colors">
             ×
           </button>
@@ -308,12 +314,12 @@ function BatchCard({ batch, tables, currentProfile, tick }) {
             Mark All Ready ({prepItems.length})
           </button>
         )}
-        {readyItems.length > 0 && isManager && (
+        {readyItems.length > 0 && (
           <button
             onClick={bumpAll}
             className="flex-1 bg-gray-700 hover:bg-gray-800 text-white text-sm font-semibold rounded-lg px-3 py-1.5 transition-colors"
           >
-            Bump All ({readyItems.length})
+            Pickup / Deliver All ({readyItems.length})
           </button>
         )}
       </div>
