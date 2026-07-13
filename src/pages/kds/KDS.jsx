@@ -74,8 +74,15 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
 
   async function handleRelease() {
     try {
-      await updateDoc(doc(db, 'orderItems', item.id), { claimedByChefId: null, status: 'in-kitchen', prepStartAt: null });
-      toast('Item released.', { icon: '↩️' });
+      if (item.status === 'ready') {
+        // Put back from ready → in-preparation (chef keeps ownership, just un-marks ready)
+        await updateDoc(doc(db, 'orderItems', item.id), { status: 'in-preparation', readyAt: null });
+        toast('Moved back to In Preparation.', { icon: '↩️' });
+      } else {
+        // Full release from in-preparation → placed (unclaimed, re-enters claim queue)
+        await updateDoc(doc(db, 'orderItems', item.id), { claimedByChefId: null, status: 'placed', prepStartAt: null });
+        toast('Item released — back in queue.', { icon: '↩️' });
+      }
     } catch { toast.error('Failed to release item.'); }
   }
 

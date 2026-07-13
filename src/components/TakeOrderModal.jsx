@@ -20,7 +20,9 @@ export default function TakeOrderModal({ table, onClose }) {
     return onSnapshot(q, snap => {
       const docs = snap.docs
         .map(d => ({ ...d.data(), id: d.id }))
-        .filter(d => ['draft', 'new', 'preparing'].includes(d.status))
+        // Include 'placed' so auto-fired guest orders are visible (read-only).
+        // Exclude draft-rejected and already-billed orders.
+        .filter(d => ['draft', 'new', 'preparing', 'placed'].includes(d.status))
         .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
       setExistingOrders(docs)
     })
@@ -232,11 +234,16 @@ export default function TakeOrderModal({ table, onClose }) {
               <h3 className="text-sm font-bold text-gray-700 mb-3">Current Orders</h3>
               <div className="space-y-3">
                 {existingOrders.map((order, oi) => (
-                  <div key={order.id} className={`rounded-xl border p-3 ${order.status === 'draft' ? 'border-amber-200 bg-amber-50' : 'border-gray-200 bg-gray-50'}`}>
+                  <div key={order.id} className={`rounded-xl border p-3 ${
+                    order.status === 'draft' ? 'border-amber-200 bg-amber-50' :
+                    order.status === 'placed' && order.source === 'guest' ? 'border-green-200 bg-green-50' :
+                    'border-gray-200 bg-gray-50'
+                  }`}>
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold text-gray-500">
                         Round {oi + 1} · {SOURCE_LABEL[order.source] ?? '👤'}
                         {order.status === 'draft' && <span className="ml-2 text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded text-xs">Pending Confirm</span>}
+                        {order.status === 'placed' && <span className="ml-2 text-green-700 bg-green-100 px-1.5 py-0.5 rounded text-xs">⚡ Auto-sent to Kitchen</span>}
                         {order.status === 'new' && <span className="ml-2 text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded text-xs">In Kitchen</span>}
                         {order.status === 'preparing' && <span className="ml-2 text-orange-600 bg-orange-100 px-1.5 py-0.5 rounded text-xs">Preparing</span>}
                       </span>
@@ -246,24 +253,41 @@ export default function TakeOrderModal({ table, onClose }) {
                           ✓ Confirm
                         </button>
                       )}
+                      {order.status === 'placed' && order.source === 'guest' && (
+                        <span className="text-xs px-2 py-1 bg-gray-100 text-gray-400 rounded-lg">
+                          No action needed
+                        </span>
+                      )}
                     </div>
                     <div className="space-y-1.5">
-                      {(order.items ?? []).map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-sm">
-                          <span className="text-gray-800 flex-1 truncate">{item.name}</span>
-                          <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                            <button onClick={() => adjustExistingItem(order, idx, -1)}
-                              className="w-6 h-6 rounded-full bg-white border border-gray-300 text-gray-600 font-bold text-base flex items-center justify-center hover:bg-gray-100">−</button>
-                            <span className="w-5 text-center font-semibold text-gray-700">{item.qty}</span>
-                            <button onClick={() => adjustExistingItem(order, idx, +1)}
-                              className="w-6 h-6 rounded-full bg-white border border-gray-300 text-gray-600 font-bold text-base flex items-center justify-center hover:bg-gray-100">+</button>
-                            <span className="text-gray-400 text-xs w-16 text-right">₹{((item.price ?? 0) * item.qty).toLocaleString('en-IN')}</span>
-                            <button onClick={() => removeExistingItem(order, idx)}
-                              disabled={removingItem === `${order.id}-${idx}`}
-                              className="w-6 h-6 rounded-full text-red-400 hover:bg-red-50 flex items-center justify-center text-sm">✕</button>
+                      {(order.items ?? []).map((item, idx) => {
+                        const isAutoFired = order.status === 'placed' && order.source === 'guest';
+                        return (
+                          <div key={idx} className="flex items-center justify-between text-sm">
+                            <span className="text-gray-800 flex-1 truncate">{item.name}</span>
+                            <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                              {isAutoFired ? (
+                                <>
+                                  <span className="w-5 text-center font-semibold text-gray-500">×{item.qty}</span>
+                                  <span className="text-gray-400 text-xs w-16 text-right">₹{((item.price ?? 0) * item.qty).toLocaleString('en-IN')}</span>
+                                </>
+                              ) : (
+                                <>
+                                  <button onClick={() => adjustExistingItem(order, idx, -1)}
+                                    className="w-6 h-6 rounded-full bg-white border border-gray-300 text-gray-600 font-bold text-base flex items-center justify-center hover:bg-gray-100">−</button>
+                                  <span className="w-5 text-center font-semibold text-gray-700">{item.qty}</span>
+                                  <button onClick={() => adjustExistingItem(order, idx, +1)}
+                                    className="w-6 h-6 rounded-full bg-white border border-gray-300 text-gray-600 font-bold text-base flex items-center justify-center hover:bg-gray-100">+</button>
+                                  <span className="text-gray-400 text-xs w-16 text-right">₹{((item.price ?? 0) * item.qty).toLocaleString('en-IN')}</span>
+                                  <button onClick={() => removeExistingItem(order, idx)}
+                                    disabled={removingItem === `${order.id}-${idx}`}
+                                    className="w-6 h-6 rounded-full text-red-400 hover:bg-red-50 flex items-center justify-center text-sm">✕</button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                     {order.note && <p className="text-xs text-gray-400 mt-2 italic">"{order.note}"</p>}
                     <p className="text-xs font-semibold text-gray-600 mt-2 text-right">₹{(order.total ?? 0).toLocaleString('en-IN')}</p>
