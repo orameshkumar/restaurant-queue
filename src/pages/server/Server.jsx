@@ -331,7 +331,9 @@ function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onSh
   const inKitchen  = orderItems.filter((i) => ['in-kitchen', 'in-preparation'].includes(i.status));
   const placed     = orderItems.filter((i) => i.status === 'placed');
   const served     = orderItems.filter((i) => i.status === 'served');
-  const allServed  = orderItems.length > 0 && ready.length === 0 && inKitchen.length === 0 && placed.length === 0;
+  const cancelled  = orderItems.filter((i) => i.status === 'cancelled');
+  const activeItems = orderItems.filter((i) => i.status !== 'cancelled');
+  const allServed  = activeItems.length > 0 && ready.length === 0 && inKitchen.length === 0 && placed.length === 0;
 
   async function handleServe(item) {
     try {
@@ -483,7 +485,28 @@ function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onSh
           </div>
         )}
 
-        {!orderItems?.length && (
+        {/* Cancelled / Not available */}
+        {cancelled.length > 0 && (
+          <div className="rounded-xl bg-red-50 border border-red-200 p-4">
+            <h3 className="text-sm font-bold text-red-700 mb-2">Cancelled / Not Available ✕</h3>
+            <div className="divide-y divide-red-100">
+              {cancelled.map((item) => (
+                <ItemRow
+                  key={item.id}
+                  item={item}
+                  actions={
+                    <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-red-200 text-red-700 font-medium line-through">
+                      {item.cancelReason === 'not_available' ? 'Out of Stock' : 'Removed'}
+                    </span>
+                  }
+                />
+              ))}
+            </div>
+            <p className="text-xs text-red-500 mt-2">Please inform the guest about these items.</p>
+          </div>
+        )}
+
+        {!activeItems?.length && cancelled.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400">
             <span className="text-4xl mb-3">🍽️</span>
             <p className="text-sm">No items yet — add some!</p>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { updateDoc, doc, serverTimestamp } from 'firebase/firestore';
+import { updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 import { db } from '../../firebase/config';
@@ -70,6 +70,33 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
       await updateDoc(doc(db, 'orderItems', item.id), { status: 'served' });
       toast.success('Item bumped.');
     } catch { toast.error('Failed to bump item.'); }
+  }
+
+  async function handleNotAvailable() {
+    if (!window.confirm(`Mark "${item.name}" as not available? It will be removed from the order and the bill will be adjusted.`)) return;
+    try {
+      await updateDoc(doc(db, 'orderItems', item.id), {
+        status: 'cancelled',
+        cancelledAt: serverTimestamp(),
+        cancelReason: 'not_available',
+      });
+      if (item.orderId) {
+        const orderSnap = await getDoc(doc(db, 'orders', item.orderId));
+        if (orderSnap.exists()) {
+          const orderData = orderSnap.data();
+          const idx = (orderData.items ?? []).findIndex(i => i.menuItemId === item.menuItemId);
+          if (idx !== -1) {
+            const newItems = orderData.items.filter((_, i) => i !== idx);
+            const newTotal = newItems.reduce((s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0);
+            await updateDoc(doc(db, 'orders', item.orderId), { items: newItems, total: newTotal });
+          }
+        }
+      }
+      toast.success(`"${item.name}" marked as not available.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to cancel item.');
+    }
   }
 
   async function handleRelease() {
@@ -156,6 +183,15 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
         {item.status === 'in-preparation' && item.claimedByChefId && (isClaimedByMe || isManager) && (
           <button onClick={handleRelease} title="Release item" className="w-8 h-8 flex-shrink-0 flex items-center justify-center bg-red-100 hover:bg-red-200 text-red-600 rounded-lg text-sm font-bold transition-colors">
             ×
+          </button>
+        )}
+        {/* Not Available — placed (unclaimed, any staff) or in-preparation (claimed chef + manager) */}
+        {(
+          (item.status === 'placed' && !item.claimedByChefId) ||
+          (item.status === 'in-preparation' && (isClaimedByMe || isManager))
+        ) && (
+          <button onClick={handleNotAvailable} className="w-full mt-1 bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-semibold rounded-lg px-3 py-1.5 transition-colors">
+            Out of Stock / Not Available
           </button>
         )}
       </div>

@@ -2,12 +2,16 @@ import { useState, useMemo, useEffect } from 'react'
 import toast from 'react-hot-toast'
 import {
   collection, addDoc, updateDoc, deleteDoc, doc,
-  serverTimestamp, onSnapshot, query, where,
+  serverTimestamp, onSnapshot, query, where, getDocs,
 } from 'firebase/firestore'
 import { db } from '../firebase/config'
 import { useCollection } from '../hooks/useCollection'
+import { useAuth } from '../context/AuthContext'
 
 export default function TakeOrderModal({ table, onClose }) {
+  const { profile } = useAuth()
+  const isManager = profile?.role === 'admin' || profile?.role === 'manager'
+
   // Load ALL menu items — filter in JS to avoid composite-index requirement
   const { docs: allMenuItems = [] } = useCollection('menuItems', 'name', 'asc')
   const menuItems = useMemo(() => allMenuItems.filter(i => i.available !== false), [allMenuItems])
@@ -33,6 +37,7 @@ export default function TakeOrderModal({ table, onClose }) {
   const [note, setNote] = useState('')
   const [firing, setFiring] = useState(false)
   const [removingItem, setRemovingItem] = useState(null)
+  const [pendingRemove, setPendingRemove] = useState(null) // { order, itemIdx }
   const [menuSearch, setMenuSearch] = useState('')
   const [reviewMode, setReviewMode] = useState(false)  // cart review step before fire
   const [firedBanner, setFiredBanner] = useState(false) // success banner after fire
@@ -82,6 +87,40 @@ export default function TakeOrderModal({ table, onClose }) {
       toast.error('Could not remove item.')
     } finally {
       setRemovingItem(null)
+    }
+  }
+
+  // Manager/admin: remove an item from a non-draft order + cancel its orderItem docs + recalculate bill
+  async function confirmRemoveItem() {
+    const { order, itemIdx } = pendingRemove
+    const item = order.items[itemIdx]
+    setPendingRemove(null)
+    try {
+      // 1. Update orders doc — remove item and recalculate total
+      const newItems = order.items.filter((_, i) => i !== itemIdx)
+      if (newItems.length === 0) {
+        await deleteDoc(doc(db, 'orders', order.id))
+      } else {
+        const newTotal = newItems.reduce((s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0)
+        await updateDoc(doc(db, 'orders', order.id), { items: newItems, total: newTotal })
+      }
+      // 2. Cancel matching orderItem docs in KDS
+      const snap = await getDocs(query(
+        collection(db, 'orderItems'),
+        where('orderId', '==', order.id),
+        where('menuItemId', '==', item.menuItemId ?? null),
+      ))
+      await Promise.all(snap.docs.map(d =>
+        updateDoc(doc(db, 'orderItems', d.id), {
+          status: 'cancelled',
+          cancelledAt: serverTimestamp(),
+          cancelReason: 'manager_removed',
+        })
+      ))
+      toast.success(`"${item.name}" removed from order.`)
+    } catch (err) {
+      console.error(err)
+      toast.error('Could not remove item.')
     }
   }
 
@@ -215,7 +254,7 @@ export default function TakeOrderModal({ table, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+      <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
 
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b flex-shrink-0">
@@ -262,16 +301,23 @@ export default function TakeOrderModal({ table, onClose }) {
                     <div className="space-y-1.5">
                       {(order.items ?? []).map((item, idx) => {
                         const isAutoFired = order.status === 'placed' && order.source === 'guest';
+                        const isDraft = order.status === 'draft';
                         return (
                           <div key={idx} className="flex items-center justify-between text-sm">
                             <span className="text-gray-800 flex-1 truncate">{item.name}</span>
                             <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
                               {isAutoFired ? (
+                                // Auto-fired guest orders: read-only display + manager remove
                                 <>
                                   <span className="w-5 text-center font-semibold text-gray-500">×{item.qty}</span>
                                   <span className="text-gray-400 text-xs w-16 text-right">₹{((item.price ?? 0) * item.qty).toLocaleString('en-IN')}</span>
+                                  {isManager && (
+                                    <button onClick={() => setPendingRemove({ order, itemIdx: idx })}
+                                      className="w-6 h-6 rounded-full text-red-500 hover:bg-red-50 flex items-center justify-center text-sm" title="Remove item">✕</button>
+                                  )}
                                 </>
-                              ) : (
+                              ) : isDraft ? (
+                                // Draft orders: full edit controls
                                 <>
                                   <button onClick={() => adjustExistingItem(order, idx, -1)}
                                     className="w-6 h-6 rounded-full bg-white border border-gray-300 text-gray-600 font-bold text-base flex items-center justify-center hover:bg-gray-100">−</button>
@@ -282,6 +328,16 @@ export default function TakeOrderModal({ table, onClose }) {
                                   <button onClick={() => removeExistingItem(order, idx)}
                                     disabled={removingItem === `${order.id}-${idx}`}
                                     className="w-6 h-6 rounded-full text-red-400 hover:bg-red-50 flex items-center justify-center text-sm">✕</button>
+                                </>
+                              ) : (
+                                // In-kitchen orders (new/preparing): read-only + manager remove only
+                                <>
+                                  <span className="w-5 text-center font-semibold text-gray-500">×{item.qty}</span>
+                                  <span className="text-gray-400 text-xs w-16 text-right">₹{((item.price ?? 0) * item.qty).toLocaleString('en-IN')}</span>
+                                  {isManager && (
+                                    <button onClick={() => setPendingRemove({ order, itemIdx: idx })}
+                                      className="w-6 h-6 rounded-full text-red-500 hover:bg-red-50 flex items-center justify-center text-sm" title="Remove item">✕</button>
+                                  )}
                                 </>
                               )}
                             </div>
@@ -442,6 +498,40 @@ export default function TakeOrderModal({ table, onClose }) {
           </div>
         </div>
       </div>
+
+      {/* ── Manager remove-item confirmation overlay ── */}
+      {pendingRemove && (() => {
+        const item = pendingRemove.order.items[pendingRemove.itemIdx]
+        return (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40 rounded-2xl">
+            <div className="bg-white rounded-2xl shadow-2xl mx-4 p-6 w-full max-w-sm space-y-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <p className="font-bold text-gray-900">Remove from Order?</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    <span className="font-semibold">{item.name}</span> ×{item.qty} will be removed from this order and cancelled in the kitchen. The bill will be adjusted automatically.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setPendingRemove(null)}
+                  className="flex-1 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={confirmRemoveItem}
+                  className="flex-1 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold"
+                >
+                  Yes, Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }
