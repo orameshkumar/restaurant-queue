@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
+import { MANAGER_ROLES } from './utils/roles'
 import Layout from './components/Layout'
 import Login    from './pages/login/Login'
 import Dashboard from './pages/dashboard/Dashboard'
@@ -18,8 +19,6 @@ import Orders  from './pages/orders/Orders'
 import QueueBoard  from './pages/queue/QueueBoard'
 import QueueJoin   from './pages/queue/QueueJoin'
 import QueueStatus from './pages/queue/QueueStatus'
-
-const MANAGER_ROLES = ['admin', 'manager']
 
 function Protected({ children, roles }) {
   const { user, profile } = useAuth()

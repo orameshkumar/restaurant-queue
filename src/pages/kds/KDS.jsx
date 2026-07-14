@@ -3,6 +3,7 @@ import { updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 import { db } from '../../firebase/config';
+import { isKitchenManagerRole } from '../../utils/roles';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
 
@@ -47,7 +48,7 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
   const isClaimedByMe = item.claimedByChefId === currentProfile?.id;
   const isClaimedByOther = item.claimedByChefId && !isClaimedByMe;
   const overdue = isOverdue(item.firedAt);
-  const isManager = ['kitchen_manager', 'admin', 'manager'].includes(currentProfile?.role);
+  const isManager = isKitchenManagerRole(currentProfile);
 
   async function handleClaimAndStart() {
     try {
@@ -224,7 +225,7 @@ function KanbanColumn({ title, items, tables, staffMap, currentProfile, tick, hi
 
 // ─── Batch card (Batch view) ──────────────────────────────────────────────────
 function BatchCard({ batch, tables, currentProfile, tick }) {
-  const isManager = ['kitchen_manager', 'admin', 'manager'].includes(currentProfile?.role);
+  const isManager = isKitchenManagerRole(currentProfile);
   const pendingItems  = batch.items.filter(i => i.status === 'placed' || i.status === 'in-kitchen');
   const prepItems     = batch.items.filter(i => i.status === 'in-preparation');
   const readyItems    = batch.items.filter(i => i.status === 'ready');

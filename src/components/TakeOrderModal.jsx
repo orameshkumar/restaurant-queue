@@ -7,10 +7,11 @@ import {
 import { db } from '../firebase/config'
 import { useCollection } from '../hooks/useCollection'
 import { useAuth } from '../context/AuthContext'
+import { isManagerRole } from '../utils/roles'
 
 export default function TakeOrderModal({ table, onClose }) {
   const { profile } = useAuth()
-  const isManager = profile?.role === 'admin' || profile?.role === 'manager'
+  const isManager = isManagerRole(profile)
 
   // Load ALL menu items — filter in JS to avoid composite-index requirement
   const { docs: allMenuItems = [] } = useCollection('menuItems', 'name', 'asc')

@@ -4,6 +4,7 @@ import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, getD
 import QRCode from 'react-qr-code';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
+import { isManagerRole as checkManagerRole } from '../../utils/roles';
 import { useCollection } from '../../hooks/useCollection';
 import PageHeader from '../../components/PageHeader';
 import TakeOrderModal from '../../components/TakeOrderModal';
@@ -625,7 +626,7 @@ function OrderPanel({ table, allOrderItems = [], draftGuestOrders = [], staffNam
 
 export default function Server() {
   const { profile } = useAuth();
-  const isManagerRole = profile?.role === 'admin' || profile?.role === 'manager';
+  const isManagerRole = checkManagerRole(profile);
 
   const activeStatuses = ['occupied', 'ordering', 'eating', 'bill_requested'];
   const visibleStatuses = [...activeStatuses, 'available', 'reserved', 'cleaning'];
