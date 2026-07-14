@@ -308,7 +308,7 @@ function BulkHandoffModal({ tables, onClose }) {
 
 // ─── Order Panel ─────────────────────────────────────────────────────────────
 
-function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onShowQR }) {
+function OrderPanel({ table, allOrderItems = [], draftGuestOrders = [], onRequestBill, onAddItems, onShowQR }) {
   // Isolate current sitting's items.
   // Primary: match by bookingId (exact, written by TakeOrderModal).
   // Fallback: seatedAt fence for items missing bookingId.
@@ -334,6 +334,40 @@ function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onSh
   const cancelled  = orderItems.filter((i) => i.status === 'cancelled');
   const activeItems = orderItems.filter((i) => i.status !== 'cancelled');
   const allServed  = activeItems.length > 0 && ready.length === 0 && inKitchen.length === 0 && placed.length === 0;
+
+  async function confirmGuestDraft(order) {
+    try {
+      await Promise.all(
+        (order.items ?? []).map(item =>
+          addDoc(collection(db, 'orderItems'), {
+            tableId:             order.tableId,
+            tableNumber:         order.tableNumber ?? null,
+            bookingId:           order.bookingId ?? null,
+            orderId:             order.id,
+            menuItemId:          item.menuItemId ?? null,
+            name:                item.name,
+            category:            item.category ?? 'Uncategorized',
+            station:             item.station ?? 'Main Kitchen',
+            price:               item.price ?? 0,
+            qty:                 item.qty ?? 1,
+            modifiers:           [],
+            specialInstructions: item.specialInstructions ?? '',
+            status:              'placed',
+            source:              'guest',
+            guestName:           order.guestName ?? null,
+            claimedByChefId:     null,
+            firedAt:             serverTimestamp(),
+            servedAt:            null,
+          })
+        )
+      );
+      await updateDoc(doc(db, 'orders', order.id), { status: 'new', confirmedAt: serverTimestamp() });
+      toast.success(`Guest order confirmed — sent to kitchen.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Could not confirm order.');
+    }
+  }
 
   async function handleServe(item) {
     try {
@@ -412,6 +446,50 @@ function OrderPanel({ table, allOrderItems = [], onRequestBill, onAddItems, onSh
 
       {/* Order sections */}
       <div className="flex-1 overflow-y-auto space-y-5">
+
+        {/* Guest draft orders waiting for confirmation */}
+        {draftGuestOrders.length > 0 && (
+          <div className="rounded-xl bg-amber-50 border-2 border-amber-400 p-4">
+            <h3 className="text-sm font-bold text-amber-800 mb-3 flex items-center gap-2">
+              📱 Guest Orders Pending Review
+              <span className="bg-amber-500 text-white text-xs px-2 py-0.5 rounded-full">{draftGuestOrders.length}</span>
+            </h3>
+            <div className="space-y-3">
+              {draftGuestOrders.map((order, idx) => (
+                <div key={order.id} className="bg-white rounded-lg border border-amber-200 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <span className="text-xs font-semibold text-gray-700">
+                        {order.guestName ?? 'Guest'} · Round {idx + 1}
+                      </span>
+                      {order.note && (
+                        <p className="text-xs text-gray-400 italic mt-0.5">"{order.note}"</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => confirmGuestDraft(order)}
+                      className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold transition"
+                    >
+                      ✓ Confirm & Send to Kitchen
+                    </button>
+                  </div>
+                  <div className="space-y-1">
+                    {(order.items ?? []).map((item, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs text-gray-600">
+                        <span>{item.name} <span className="text-gray-400">×{item.qty}</span></span>
+                        <span className="text-gray-400">₹{((item.price ?? 0) * item.qty).toLocaleString('en-IN')}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs font-semibold text-gray-700 text-right mt-2">
+                    Total: ₹{(order.total ?? 0).toLocaleString('en-IN')}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Ready to serve */}
         {ready.length > 0 && (
           <div className="rounded-xl bg-green-50 border border-green-200 p-4">
@@ -566,6 +644,8 @@ export default function Server() {
   // All order items for pending count (across my tables)
   const myTableIds = myTables.map((t) => t.id);
   const { docs: allOrderItems = [] } = useCollection('orderItems', 'firedAt', 'asc');
+  const { docs: allOrders = [] }     = useCollection('orders', 'createdAt', 'asc');
+
   const pendingByTable = useMemo(() => {
     const map = {};
     (allOrderItems ?? []).forEach((item) => {
@@ -575,6 +655,18 @@ export default function Server() {
     });
     return map;
   }, [allOrderItems, myTableIds.join(',')]);
+
+  // Draft guest orders waiting for server confirmation (autoFireGuestOrders=false flow)
+  const draftGuestByTable = useMemo(() => {
+    const map = {};
+    allOrders
+      .filter(o => o.status === 'draft' && o.source === 'guest' && myTableIds.includes(o.tableId))
+      .forEach(o => {
+        if (!map[o.tableId]) map[o.tableId] = [];
+        map[o.tableId].push(o);
+      });
+    return map;
+  }, [allOrders, myTableIds.join(',')]);
 
   const [selectedTable, setSelectedTable]     = useState(null);
   const [addItemsTable, setAddItemsTable]     = useState(null);
@@ -745,11 +837,18 @@ export default function Server() {
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-500 pl-6">
                           <span>👥 {table.partySize ?? '—'} guests · ⏱ {timeSince(table.seatedAt)}</span>
-                          {pending > 0 && (
-                            <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
-                              {pending}
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {(draftGuestByTable[table.id]?.length ?? 0) > 0 && (
+                              <span className="bg-amber-500 text-white px-1.5 py-0.5 rounded-full font-semibold" title="Guest order waiting for review">
+                                📱 {draftGuestByTable[table.id].length}
+                              </span>
+                            )}
+                            {pending > 0 && (
+                              <span className="bg-orange-500 text-white px-1.5 py-0.5 rounded-full font-semibold">
+                                {pending}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );
@@ -766,6 +865,7 @@ export default function Server() {
                 <OrderPanel
                   table={liveSelectedTable}
                   allOrderItems={allOrderItems}
+                  draftGuestOrders={draftGuestByTable[liveSelectedTable.id] ?? []}
                   onRequestBill={handleRequestBill}
                   onAddItems={(t) => setAddItemsTable(t)}
                   onShowQR={(t) => setQrTable(t)}
