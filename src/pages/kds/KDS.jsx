@@ -47,7 +47,7 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
   const isClaimedByMe = item.claimedByChefId === currentProfile?.id;
   const isClaimedByOther = item.claimedByChefId && !isClaimedByMe;
   const overdue = isOverdue(item.firedAt);
-  const isManager = currentProfile?.role === 'kitchen_manager' || currentProfile?.role === 'admin';
+  const isManager = ['kitchen_manager', 'admin', 'manager'].includes(currentProfile?.role);
 
   async function handleClaimAndStart() {
     try {
@@ -224,7 +224,7 @@ function KanbanColumn({ title, items, tables, staffMap, currentProfile, tick, hi
 
 // ─── Batch card (Batch view) ──────────────────────────────────────────────────
 function BatchCard({ batch, tables, currentProfile, tick }) {
-  const isManager = currentProfile?.role === 'kitchen_manager' || currentProfile?.role === 'admin';
+  const isManager = ['kitchen_manager', 'admin', 'manager'].includes(currentProfile?.role);
   const pendingItems  = batch.items.filter(i => i.status === 'placed' || i.status === 'in-kitchen');
   const prepItems     = batch.items.filter(i => i.status === 'in-preparation');
   const readyItems    = batch.items.filter(i => i.status === 'ready');
