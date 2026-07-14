@@ -653,40 +653,74 @@ function OrderCard({ order, allOrderItems, isManager }) {
   }
 
   async function handleCancelOrder() {
-    if (
-      !window.confirm(
-        `Cancel entire order for ${order.customerName}?\nA refund of ${fmt(liveTotal)} will be recorded.`
-      )
-    )
-      return;
+    // Only cancel items not yet served or already cancelled
+    const cancelableItems = items.filter(
+      i => i.status !== 'cancelled' && i.status !== 'served'
+    );
+    // Items already served/delivered — customer keeps these, no refund on them
+    const servedItems = items.filter(i => i.status === 'served');
+    const servedValue = servedItems.reduce(
+      (s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0
+    );
+    // Refund = what customer paid minus what was actually delivered
+    const paidTotal = order.total ?? liveTotal;
+    const refundAmount = Math.max(0, paidTotal - servedValue);
+
+    const hasPartial = servedItems.length > 0;
+    const confirmMsg = hasPartial
+      ? `Partial order was already delivered to ${order.customerName}.\n\n` +
+        `Delivered: ${fmt(servedValue)}\n` +
+        `Refund due: ${fmt(refundAmount)} (original ${fmt(paidTotal)} − delivered ${fmt(servedValue)})\n\n` +
+        `Cancel remaining items and record refund?`
+      : `Cancel entire order for ${order.customerName}?\nFull refund of ${fmt(refundAmount)} will be recorded.`;
+
+    if (!window.confirm(confirmMsg)) return;
+
     setCancelling(true);
     try {
       const batch = writeBatch(db);
-      activeItems.forEach(i =>
+
+      // Cancel only items not yet delivered
+      cancelableItems.forEach(i =>
         batch.update(doc(db, 'orderItems', i.id), {
           status: 'cancelled',
           cancelledAt: serverTimestamp(),
           cancelReason: 'manager_removed',
         })
       );
+
       batch.update(doc(db, 'orders', order.id), {
         status: 'cancelled',
         cancelledAt: serverTimestamp(),
+        refundAmount,
+        deliveredValue: servedValue,
       });
-      batch.set(doc(collection(db, 'refunds')), {
-        orderId: order.id,
-        orderType: order.type,
-        customerName: order.customerName,
-        customerPhone: order.customerPhone,
-        amount: liveTotal,
-        reason: 'Full order cancelled',
-        paymentMethod: order.paymentMethod ?? 'cash',
-        createdAt: serverTimestamp(),
-      });
+
+      // Only create refund record if there's something to refund
+      if (refundAmount > 0) {
+        batch.set(doc(collection(db, 'refunds')), {
+          orderId: order.id,
+          orderType: order.type,
+          customerName: order.customerName,
+          customerPhone: order.customerPhone,
+          originalAmount: paidTotal,
+          deliveredAmount: servedValue,
+          amount: refundAmount,
+          reason: hasPartial ? 'Partial order cancelled — items not delivered' : 'Full order cancelled',
+          paymentMethod: order.paymentMethod ?? 'cash',
+          createdAt: serverTimestamp(),
+        });
+      }
+
       await batch.commit();
-      toast.success('Order cancelled. Refund recorded.');
-    } catch {
-      toast.error('Cancellation failed.');
+      toast.success(
+        refundAmount > 0
+          ? `Order cancelled. Refund ${fmt(refundAmount)} recorded.`
+          : 'Order cancelled. No refund due (all items were delivered).'
+      );
+    } catch (err) {
+      console.error('cancelOrder error:', err);
+      toast.error(`Cancellation failed: ${err.message ?? err}`);
     } finally {
       setCancelling(false);
     }
