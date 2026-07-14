@@ -148,10 +148,38 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
     } catch { toast.error('Failed to release item.'); }
   }
 
+  const sourceBorder =
+    item.source === 'takeaway' ? 'border-teal-400' :
+    item.source === 'delivery' ? 'border-purple-400' :
+    'border-gray-200';
+
   return (
-    <div className={`relative bg-white rounded-xl shadow-sm border-2 p-4 flex flex-col gap-2 transition-all duration-300 ${overdue ? 'border-red-500 animate-pulse' : 'border-gray-200'}`}>
+    <div className={`relative bg-white rounded-xl shadow-sm border-2 p-4 flex flex-col gap-2 transition-all duration-300 ${overdue ? 'border-red-500 animate-pulse' : sourceBorder}`}>
+      {/* Takeaway / Delivery badge */}
+      {(item.source === 'takeaway' || item.source === 'delivery') && (
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${item.source === 'takeaway' ? 'bg-teal-100 text-teal-700' : 'bg-purple-100 text-purple-700'}`}>
+            {item.source === 'takeaway' ? '🥡 TAKEAWAY' : '🛵 DELIVERY'}
+          </span>
+          {item.pickupToken && (
+            <span className="text-xs font-mono font-bold bg-teal-600 text-white px-2 py-0.5 rounded">
+              {item.pickupToken}
+            </span>
+          )}
+          {item.deliveryPartner && (
+            <span className="text-xs bg-purple-200 text-purple-800 font-medium px-2 py-0.5 rounded">
+              {item.deliveryPartner}
+            </span>
+          )}
+          {item.customerName && (
+            <span className="text-xs text-gray-500 truncate max-w-[120px]">{item.customerName}</span>
+          )}
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
-        <span className="text-lg font-bold text-gray-900 truncate">{tableName}</span>
+        <span className="text-lg font-bold text-gray-900 truncate">
+          {item.source === 'takeaway' || item.source === 'delivery' ? (item.customerName ?? '—') : tableName}
+        </span>
         <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 font-bold text-sm flex-shrink-0">
           ×{item.qty ?? 1}
         </span>
@@ -333,13 +361,30 @@ function BatchCard({ batch, tables, currentProfile, tick }) {
 
       {/* Per-table breakdown */}
       <div className="flex flex-col gap-1">
-        {batch.tableBreakdown.map(({ tableId, tableNumber, qty, statuses, source, guestName }) => {
+        {batch.tableBreakdown.map(({ tableId, tableNumber, qty, statuses, source, guestName, customerName, pickupToken, deliveryPartner }) => {
           const hasReady  = statuses.includes('ready');
           const hasPrep   = statuses.includes('in-preparation');
+          const isTakeaway = source === 'takeaway';
+          const isDelivery = source === 'delivery';
+          const rowBg = isTakeaway ? 'bg-teal-50' : isDelivery ? 'bg-purple-50' : 'bg-gray-50';
           return (
-            <div key={tableId} className="flex items-center justify-between text-xs px-2 py-1 rounded-lg bg-gray-50">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="font-medium text-gray-700">Table {tableNumber ?? '?'}</span>
+            <div key={tableId} className={`flex items-center justify-between text-xs px-2 py-1 rounded-lg ${rowBg}`}>
+              <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                {isTakeaway && (
+                  <span className="bg-teal-100 text-teal-700 font-bold rounded-full px-1.5 py-0.5">🥡</span>
+                )}
+                {isDelivery && (
+                  <span className="bg-purple-100 text-purple-700 font-bold rounded-full px-1.5 py-0.5">🛵</span>
+                )}
+                <span className="font-medium text-gray-700">
+                  {isTakeaway || isDelivery ? (customerName ?? '—') : `Table ${tableNumber ?? '?'}`}
+                </span>
+                {pickupToken && (
+                  <span className="font-mono font-bold bg-teal-600 text-white px-1.5 py-0.5 rounded">{pickupToken}</span>
+                )}
+                {deliveryPartner && (
+                  <span className="bg-purple-200 text-purple-800 rounded px-1.5 py-0.5">{deliveryPartner}</span>
+                )}
                 {source === 'guest' && guestName && (
                   <span className="bg-amber-100 text-amber-700 rounded-full px-1.5 py-0.5 truncate max-w-[80px]">
                     👤 {guestName}
@@ -425,7 +470,7 @@ function BatchView({ filteredItems, tables, currentProfile, tick }) {
       batch.items.forEach(item => {
         if (!byTable[item.tableId]) {
           const t = tables.find(t => t.id === item.tableId);
-          byTable[item.tableId] = { tableId: item.tableId, tableNumber: t?.tableNumber, qty: 0, statuses: [], source: item.source, guestName: item.guestName ?? null };
+          byTable[item.tableId] = { tableId: item.tableId, tableNumber: t?.tableNumber, qty: 0, statuses: [], source: item.source, guestName: item.guestName ?? null, customerName: item.customerName ?? null, pickupToken: item.pickupToken ?? null, deliveryPartner: item.deliveryPartner ?? null };
         }
         byTable[item.tableId].qty += item.qty ?? 1;
         byTable[item.tableId].statuses.push(item.status);
