@@ -3,6 +3,7 @@ import {
   collection, doc, serverTimestamp,
   query, where, onSnapshot, writeBatch,
 } from 'firebase/firestore';
+import QRCode from 'react-qr-code';
 import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
@@ -539,6 +540,56 @@ function ItemRow({ item, orderId, isManager }) {
 }
 
 // ─── Order card ───────────────────────────────────────────────────────────────
+function QueueBoardModal({ order, onClose }) {
+  const queueUrl = `${window.location.origin}/takeaway/queue/${order.id}`;
+  function copyLink() {
+    navigator.clipboard.writeText(queueUrl).then(
+      () => toast.success('Link copied!'),
+      () => toast.error('Copy failed — share the URL manually.')
+    );
+  }
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <h2 className="font-bold text-gray-900">Queue Board Link</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none px-1">×</button>
+        </div>
+        <div className="p-6 flex flex-col items-center gap-5">
+          {order.pickupToken && (
+            <div className="text-center">
+              <p className="text-xs text-gray-400 mb-1">Token</p>
+              <p className="text-4xl font-black text-teal-700">{order.pickupToken}</p>
+            </div>
+          )}
+          <div className="bg-white p-3 rounded-xl border-2 border-gray-200">
+            <QRCode value={queueUrl} size={180} />
+          </div>
+          <p className="text-xs text-gray-500 text-center break-all">{queueUrl}</p>
+          <p className="text-xs text-gray-400 text-center">
+            Share this QR or link with the customer to track their order live.
+            The page auto-updates as kitchen progresses.
+          </p>
+        </div>
+        <div className="flex gap-3 px-5 pb-5">
+          <button
+            onClick={copyLink}
+            className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-lg transition-colors"
+          >
+            Copy Link
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2.5 border rounded-lg text-sm hover:bg-gray-50"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function OrderCard({ order, allOrderItems, isManager }) {
   const items = useMemo(
     () => allOrderItems.filter(i => i.orderId === order.id),
@@ -559,6 +610,7 @@ function OrderCard({ order, allOrderItems, isManager }) {
 
   const [handing, setHanding] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [showQR, setShowQR] = useState(false);
 
   const statusLabel =
     order.status === 'completed'
@@ -686,10 +738,17 @@ function OrderCard({ order, allOrderItems, isManager }) {
             </p>
           )}
         </div>
-        <div className="text-right flex-shrink-0">
+        <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
           <p className="text-base font-bold text-gray-900">{fmt(liveTotal)}</p>
           <p className="text-xs text-gray-400 capitalize">{order.paymentMethod}</p>
           <p className="text-xs text-green-600 font-medium">Paid</p>
+          <button
+            onClick={() => setShowQR(true)}
+            title="Queue board link / QR"
+            className={`mt-1 text-xs font-semibold px-2 py-1 rounded-lg transition-colors ${isDelivery ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' : 'bg-teal-100 text-teal-700 hover:bg-teal-200'}`}
+          >
+            📋 Queue Board
+          </button>
         </div>
       </div>
 
@@ -737,6 +796,9 @@ function OrderCard({ order, allOrderItems, isManager }) {
           )}
         </div>
       )}
+
+      {/* Queue board QR modal */}
+      {showQR && <QueueBoardModal order={order} onClose={() => setShowQR(false)} />}
     </div>
   );
 }

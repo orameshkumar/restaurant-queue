@@ -22,6 +22,7 @@ const DEFAULT_SETTINGS = {
   merchantId: '',
   autoFireGuestOrders: false,
   autoAssignQueue: false,
+  standardItemDuration: 5,
   sectionEwt: { Indoor: 30, Outdoor: 25, 'Bar & Lounge': 20, 'Private Dining': 45 },
   operatingHours: Object.fromEntries(
     DAYS.map((d) => [d, { openTime: '09:00', closeTime: '22:00', closed: false }])
@@ -371,6 +372,29 @@ export default function Settings() {
                 </div>
               );
             })}
+          </div>
+        </section>
+
+        {/* Takeaway & Delivery */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Takeaway & Delivery</h2>
+          <div>
+            <label htmlFor="settings-item-duration" className="block text-sm font-medium text-gray-700 mb-1">
+              Standard item preparation time (minutes)
+            </label>
+            <input
+              type="number"
+              id="settings-item-duration"
+              name="standardItemDuration"
+              min={1}
+              max={60}
+              value={form.standardItemDuration ?? 5}
+              onChange={handleChange}
+              className="w-28 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Used to estimate wait time on the customer queue board. Each item in the kitchen queue adds this many minutes to the ETA.
+            </p>
           </div>
         </section>
 
