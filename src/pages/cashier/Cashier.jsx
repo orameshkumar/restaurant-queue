@@ -249,6 +249,7 @@ export default function Cashier() {
         .map(d => ({ ...d.data(), id: d.id }))
         .filter(d => {
           if (d.status === 'served') return false;
+          if (d.status === 'cancelled') return false;   // cancelled items don't block billing
           if (liveSelectedTable.currentBookingId && d.bookingId && d.bookingId !== liveSelectedTable.currentBookingId) return false;
           return true;
         });

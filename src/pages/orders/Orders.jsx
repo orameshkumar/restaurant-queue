@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDocs, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
@@ -61,19 +61,16 @@ export default function Orders() {
 
       // Remove item from the parent orders doc and recalculate total
       if (orderRow.orderId && orderRow.orderId !== 'direct') {
-        const orderSnap = await getDocs(query(
-          collection(db, 'orders'),
-          where('__name__', '==', orderRow.orderId)
-        ))
-        if (!orderSnap.empty) {
-          const orderDoc = orderSnap.docs[0]
-          const orderData = orderDoc.data()
+        const orderSnap = await getDoc(doc(db, 'orders', orderRow.orderId))
+        if (orderSnap.exists()) {
+          const orderData = orderSnap.data()
           const newItems = (orderData.items ?? []).filter(i => i.menuItemId !== item.menuItemId)
           if (newItems.length === 0) {
-            await deleteDoc(doc(db, 'orders', orderDoc.id))
+            await deleteDoc(doc(db, 'orders', orderRow.orderId))
           } else {
-            const newTotal = newItems.reduce((s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0)
-            await updateDoc(doc(db, 'orders', orderDoc.id), { items: newItems, total: newTotal })
+            // use price ?? unitPrice to handle both field naming conventions
+            const newTotal = newItems.reduce((s, i) => s + ((i.price ?? i.unitPrice ?? 0) * (i.qty ?? 1)), 0)
+            await updateDoc(doc(db, 'orders', orderRow.orderId), { items: newItems, total: newTotal })
           }
         }
       }
