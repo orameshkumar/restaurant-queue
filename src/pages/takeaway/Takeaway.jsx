@@ -764,14 +764,11 @@ function OrderCard({ order, allOrderItems, isManager, merchantVpa = '', merchant
       className={`bg-white rounded-xl shadow-sm border-2 ${borderCls} overflow-hidden`}
     >
       {/* Card header */}
-      <div
-        className={`${headerBg} px-4 py-3 flex items-start justify-between gap-3`}
-      >
+      <div className={`${headerBg} px-4 py-3 flex items-start gap-3`}>
+        {/* Left: order info */}
         <div className="min-w-0 flex-1">
           <div className="flex items-center flex-wrap gap-1.5 mb-1">
-            <span
-              className={`text-xs font-bold px-2 py-0.5 rounded-full ${typeBadge}`}
-            >
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${typeBadge}`}>
               {isDelivery ? '🛵 DELIVERY' : '🥡 TAKEAWAY'}
             </span>
             {order.pickupToken && (
@@ -784,40 +781,43 @@ function OrderCard({ order, allOrderItems, isManager, merchantVpa = '', merchant
                 {order.deliveryPartner}
               </span>
             )}
-            <span
-              className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusLabel.cls}`}
-            >
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusLabel.cls}`}>
               {statusLabel.text}
             </span>
           </div>
           <p className="text-sm font-semibold text-gray-800">{order.customerName}</p>
           <p className="text-xs text-gray-500">{order.customerPhone}</p>
           {order.deliveryAddress && (
-            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">
-              {order.deliveryAddress}
-            </p>
+            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{order.deliveryAddress}</p>
           )}
+          <div className="mt-2 flex items-center gap-3">
+            <div>
+              <p className="text-base font-bold text-gray-900">{fmt(liveTotal)}</p>
+              <p className="text-xs text-gray-400 capitalize">{order.paymentMethod} · <span className="text-green-600 font-medium">Paid</span></p>
+            </div>
+            {merchantVpa && order.status !== 'completed' && order.status !== 'cancelled' && (
+              <button
+                onClick={() => setShowUpiQR(true)}
+                title="Show UPI payment QR"
+                className="text-xs font-semibold px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+              >
+                📲 UPI QR
+              </button>
+            )}
+          </div>
         </div>
-        <div className="text-right flex-shrink-0 flex flex-col items-end gap-1">
-          <p className="text-base font-bold text-gray-900">{fmt(liveTotal)}</p>
-          <p className="text-xs text-gray-400 capitalize">{order.paymentMethod}</p>
-          <p className="text-xs text-green-600 font-medium">Paid</p>
-          <button
-            onClick={() => setShowQR(true)}
-            title="Queue board link / QR"
-            className={`mt-1 text-xs font-semibold px-2 py-1 rounded-lg transition-colors ${isDelivery ? 'bg-purple-100 text-purple-700 hover:bg-purple-200' : 'bg-teal-100 text-teal-700 hover:bg-teal-200'}`}
-          >
-            📋 Queue Board
-          </button>
-          {merchantVpa && order.status !== 'completed' && order.status !== 'cancelled' && (
-            <button
-              onClick={() => setShowUpiQR(true)}
-              title="Show UPI payment QR"
-              className="mt-1 text-xs font-semibold px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
-            >
-              📲 UPI QR
-            </button>
-          )}
+
+        {/* Right: inline token status QR */}
+        <div className="flex-shrink-0 flex flex-col items-center gap-1">
+          <div className="bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm">
+            <QRCode
+              value={`${window.location.origin}/takeaway/queue/${order.id}`}
+              size={72}
+            />
+          </div>
+          <p className="text-xs text-gray-400 text-center leading-tight">
+            {order.pickupToken ?? 'Status'}
+          </p>
         </div>
       </div>
 
