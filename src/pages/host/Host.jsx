@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { collection, addDoc, updateDoc, doc, getDoc, serverTimestamp, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDoc, getDocs, query, where, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
 import QRCode from 'react-qr-code';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
+import { isManagerRole } from '../../utils/roles';
 import { useCollection } from '../../hooks/useCollection';
 import { useDocument } from '../../hooks/useDocument';
 import { useEwt } from '../../hooks/useEwt';
@@ -505,6 +506,8 @@ function QRCodeModal({ tableId, bookingId, tableNumber, guestName, onClose }) {
 // ─── Table Card ───────────────────────────────────────────────────────────────
 
 function TableCard({ table, waitingBookings, availableTables = [], allTables = [], hasReadyItems = false, allDelivered = false, bestMatch = null, onQuickSeat = null }) {
+  const { profile } = useAuth();
+  const isManager = isManagerRole(profile);
   const [showAssign, setShowAssign] = useState(false);
   const [showOrder, setShowOrder] = useState(false);
   const [qrInfo, setQrInfo] = useState(null);
@@ -537,34 +540,89 @@ function TableCard({ table, waitingBookings, availableTables = [], allTables = [
   }
 
   async function returnToQueue() {
-    if (!window.confirm(`Return Table ${table.tableNumber} guest to the waiting queue?`)) return
+    const bookingId = table.currentBookingId
+    const tableIds  = [table.id, table.linkedTableId].filter(Boolean)
+
+    // Check for active kitchen orders on this table/booking
+    const activeSnap = await getDocs(query(
+      collection(db, 'orderItems'),
+      where('tableId', 'in', tableIds),
+      where('status', 'in', ['placed', 'in-kitchen', 'in-preparation', 'ready']),
+    ))
+    const activeItems = activeSnap.docs.filter(
+      d => !bookingId || d.data().bookingId === bookingId
+    )
+
+    if (activeItems.length > 0 && !isManager) {
+      toast.error(
+        `Table ${table.tableNumber} has ${activeItems.length} active kitchen order${activeItems.length > 1 ? 's' : ''}. Only a manager can return this guest to queue.`
+      )
+      return
+    }
+
+    const hasActiveOrders = activeItems.length > 0
+    const confirmMsg = hasActiveOrders
+      ? `Table ${table.tableNumber} has ${activeItems.length} active kitchen item${activeItems.length > 1 ? 's' : ''}.\n\nAll pending orders will be cancelled. Return guest to queue?`
+      : `Return Table ${table.tableNumber} guest to the waiting queue?`
+
+    if (!window.confirm(confirmMsg)) return
+
     try {
-      // Free this table
-      await updateDoc(doc(db, 'tables', table.id), {
-        status: 'available',
-        currentBookingId: null,
-        seatedAt: null,
-        linkedTableId: null,
+      const batch = writeBatch(db)
+
+      // Cancel all active orderItems for this booking
+      if (hasActiveOrders) {
+        activeItems.forEach(d => {
+          batch.update(doc(db, 'orderItems', d.id), {
+            status:       'cancelled',
+            cancelledAt:  serverTimestamp(),
+            cancelReason: 'guest_returned_to_queue',
+          })
+        })
+
+        // Also cancel the parent orders docs
+        const ordersSnap = await getDocs(query(
+          collection(db, 'orders'),
+          where('tableId', 'in', tableIds),
+        ))
+        ordersSnap.docs
+          .filter(d => {
+            const s = d.data().status
+            return !bookingId || d.data().bookingId === bookingId
+          })
+          .filter(d => !['billed', 'cancelled'].includes(d.data().status))
+          .forEach(d => {
+            batch.update(doc(db, 'orders', d.id), {
+              status:      'cancelled',
+              cancelledAt: serverTimestamp(),
+              cancelReason:'guest_returned_to_queue',
+            })
+          })
+      }
+
+      // Free the table(s)
+      batch.update(doc(db, 'tables', table.id), {
+        status: 'available', currentBookingId: null, seatedAt: null, linkedTableId: null,
       })
-      // Free linked table if any
       if (table.linkedTableId) {
-        await updateDoc(doc(db, 'tables', table.linkedTableId), {
-          status: 'available',
-          currentBookingId: null,
-          seatedAt: null,
-          linkedTableId: null,
+        batch.update(doc(db, 'tables', table.linkedTableId), {
+          status: 'available', currentBookingId: null, seatedAt: null, linkedTableId: null,
         })
       }
+
       // Put booking back to waiting
-      if (table.currentBookingId) {
-        await updateDoc(doc(db, 'bookings', table.currentBookingId), {
-          status: 'waiting',
-          tableId: null,
-          tableIds: null,
-          seatedAt: null,
+      if (bookingId) {
+        batch.update(doc(db, 'bookings', bookingId), {
+          status: 'waiting', tableId: null, tableIds: null, seatedAt: null,
         })
       }
-      toast.success(`Table ${table.tableNumber} freed — guest returned to queue.`)
+
+      await batch.commit()
+      toast.success(
+        hasActiveOrders
+          ? `Table ${table.tableNumber} freed — ${activeItems.length} order item${activeItems.length > 1 ? 's' : ''} cancelled, guest returned to queue.`
+          : `Table ${table.tableNumber} freed — guest returned to queue.`
+      )
     } catch (err) {
       console.error(err)
       toast.error('Could not return guest to queue.')

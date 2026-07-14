@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, deleteDoc, serverTimestamp } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, getDoc, updateDoc, deleteDoc, getDocs, writeBatch, serverTimestamp } from 'firebase/firestore'
 import toast from 'react-hot-toast'
 import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
@@ -182,10 +182,161 @@ export default function Orders() {
 
   const loading = loadingItems
 
+  // ── Cleanup view ──────────────────────────────────────────────────────────
+  const [viewMode, setViewMode] = useState('active') // 'active' | 'cleanup'
+  const [cleaningId, setCleaningId] = useState(null)
+
+  // Orphan orders: orders not billed/cancelled whose bookingId no longer matches
+  // the table's currentBookingId (the table was freed/re-seated without cleanup)
+  const orphanOrders = useMemo(() => {
+    if (!isManager) return []
+    return Object.values(ordersMap).filter(order => {
+      if (['billed', 'cancelled'].includes(order.status)) return false
+      const table = tableMap[order.tableId]
+      if (!table) return true  // table deleted — definitely orphan
+      // If the table has a different (or no) currentBookingId this order is stale
+      if (order.bookingId && table.currentBookingId !== order.bookingId) return true
+      if (!order.bookingId && !table.currentBookingId) return false
+      return false
+    })
+  }, [ordersMap, tableMap, isManager])
+
+  async function deleteOrphanOrder(order) {
+    if (cleaningId) return
+    if (!window.confirm(`Delete orphan order for Table ${tableMap[order.tableId]?.tableNumber ?? '?'} (${(order.items ?? []).length} item${(order.items ?? []).length !== 1 ? 's' : ''})?\n\nThis cannot be undone.`)) return
+    setCleaningId(order.id)
+    try {
+      const batch = writeBatch(db)
+
+      // Cancel all orderItems belonging to this order
+      const itemsSnap = await getDocs(query(collection(db, 'orderItems'), where('orderId', '==', order.id)))
+      itemsSnap.docs
+        .filter(d => !['served', 'cancelled'].includes(d.data().status))
+        .forEach(d => batch.update(doc(db, 'orderItems', d.id), {
+          status: 'cancelled', cancelledAt: serverTimestamp(), cancelReason: 'orphan_cleanup',
+        }))
+
+      // Delete the order doc itself
+      batch.delete(doc(db, 'orders', order.id))
+
+      await batch.commit()
+      toast.success('Orphan order deleted.')
+    } catch (err) {
+      console.error(err)
+      toast.error(`Delete failed: ${err.message ?? err}`)
+    } finally {
+      setCleaningId(null)
+    }
+  }
+
+  async function deleteAllOrphans() {
+    if (orphanOrders.length === 0) return
+    if (!window.confirm(`Delete ALL ${orphanOrders.length} orphan order${orphanOrders.length !== 1 ? 's' : ''}?\n\nThis will also cancel their kitchen items and cannot be undone.`)) return
+    setCleaningId('all')
+    try {
+      const batch = writeBatch(db)
+      for (const order of orphanOrders) {
+        const itemsSnap = await getDocs(query(collection(db, 'orderItems'), where('orderId', '==', order.id)))
+        itemsSnap.docs
+          .filter(d => !['served', 'cancelled'].includes(d.data().status))
+          .forEach(d => batch.update(doc(db, 'orderItems', d.id), {
+            status: 'cancelled', cancelledAt: serverTimestamp(), cancelReason: 'orphan_cleanup',
+          }))
+        batch.delete(doc(db, 'orders', order.id))
+      }
+      await batch.commit()
+      toast.success(`${orphanOrders.length} orphan order${orphanOrders.length !== 1 ? 's' : ''} deleted.`)
+    } catch (err) {
+      console.error(err)
+      toast.error(`Cleanup failed: ${err.message ?? err}`)
+    } finally {
+      setCleaningId(null)
+    }
+  }
+
   return (
     <div>
       <PageHeader title="Active Orders" subtitle="All live orders across tables" />
 
+      {/* View mode tabs (manager only) */}
+      {isManager && (
+        <div className="flex gap-2 mb-5">
+          <button onClick={() => setViewMode('active')}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${viewMode === 'active' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-400'}`}>
+            Active Orders
+          </button>
+          <button onClick={() => setViewMode('cleanup')}
+            className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${viewMode === 'cleanup' ? 'bg-red-600 text-white border-red-600' : 'bg-white text-gray-600 border-gray-200 hover:border-red-400'}`}>
+            🧹 Orphan Cleanup {orphanOrders.length > 0 && <span className="ml-1 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">{orphanOrders.length}</span>}
+          </button>
+        </div>
+      )}
+
+      {/* ── Cleanup view ── */}
+      {viewMode === 'cleanup' && isManager && (
+        <div className="space-y-4">
+          {orphanOrders.length === 0 ? (
+            <div className="text-center py-20 text-gray-400">
+              <p className="text-4xl mb-2">✅</p>
+              <p className="text-sm font-medium">No orphan orders — system is clean.</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between">
+                <p className="text-sm text-gray-500">
+                  {orphanOrders.length} order{orphanOrders.length !== 1 ? 's' : ''} belong to freed/re-seated tables and are no longer linked to an active booking.
+                </p>
+                <button
+                  onClick={deleteAllOrphans}
+                  disabled={!!cleaningId}
+                  className="text-xs px-3 py-1.5 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-lg font-semibold transition"
+                >
+                  {cleaningId === 'all' ? 'Cleaning…' : '🗑 Delete All'}
+                </button>
+              </div>
+              {orphanOrders.map(order => {
+                const table = tableMap[order.tableId]
+                return (
+                  <div key={order.id} className="bg-white rounded-xl border border-red-100 shadow-sm p-4 flex gap-4">
+                    <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-red-50 border border-red-100">
+                      <span className="text-xs text-red-400 font-medium leading-none">Table</span>
+                      <span className="text-xl font-bold text-red-600 leading-tight">{table?.tableNumber ?? '?'}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1.5">
+                        <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Orphan · {order.status}</span>
+                        {order.source === 'guest' && <span className="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">📱 Guest QR</span>}
+                        {order.guestName && <span className="text-xs text-gray-400">👤 {order.guestName}</span>}
+                      </div>
+                      <div className="flex flex-col gap-0.5">
+                        {(order.items ?? []).map((item, i) => (
+                          <span key={i} className="text-sm text-gray-700">
+                            {item.name} <span className="text-gray-400">×{item.qty ?? 1}</span>
+                            <span className="text-gray-500 ml-1">₹{((item.price ?? item.unitPrice ?? 0) * (item.qty ?? 1)).toLocaleString('en-IN')}</span>
+                          </span>
+                        ))}
+                      </div>
+                      {order.note && <p className="text-xs text-gray-400 italic mt-1">"{order.note}"</p>}
+                      <p className="text-xs font-semibold text-gray-600 mt-1">Total: ₹{(order.total ?? 0).toLocaleString('en-IN')}</p>
+                    </div>
+                    <button
+                      onClick={() => deleteOrphanOrder(order)}
+                      disabled={!!cleaningId}
+                      className="self-center flex-shrink-0 px-3 py-1.5 text-xs bg-red-100 hover:bg-red-200 text-red-700 rounded-lg font-semibold transition disabled:opacity-50"
+                    >
+                      {cleaningId === order.id ? '…' : '🗑 Delete'}
+                    </button>
+                  </div>
+                )
+              })}
+            </>
+          )}
+        </div>
+      )}
+
+      {/* ── Active orders view ── */}
+      {viewMode === 'active' && (
+      <>
       {/* Filters */}
       <div className="flex flex-wrap gap-3 mb-5 items-center">
         {/* Status pills */}
@@ -310,6 +461,9 @@ export default function Orders() {
             )
           })}
         </div>
+      )}
+
+      </> // end active orders view
       )}
 
       {/* Confirmation modal */}
