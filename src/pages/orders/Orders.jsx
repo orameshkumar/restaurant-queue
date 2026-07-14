@@ -1,7 +1,10 @@
 import { useState, useMemo, useEffect } from 'react'
-import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDocs, serverTimestamp } from 'firebase/firestore'
+import toast from 'react-hot-toast'
 import { db } from '../../firebase/config'
+import { useAuth } from '../../context/AuthContext'
 import { useCollection } from '../../hooks/useCollection'
+import { isManagerRole } from '../../utils/roles'
 import PageHeader from '../../components/PageHeader'
 
 // Effective order status derived from its live orderItems
@@ -36,7 +39,53 @@ function timeAgo(ts) {
 }
 
 export default function Orders() {
+  const { profile } = useAuth()
+  const isManager = isManagerRole(profile)
+
   const { docs: tables = [] } = useCollection('tables', 'tableNumber')
+
+  const [pendingDelete, setPendingDelete] = useState(null) // { item, orderRow }
+  const [deleting, setDeleting] = useState(false)
+
+  async function confirmDelete() {
+    const { item, orderRow } = pendingDelete
+    setPendingDelete(null)
+    setDeleting(true)
+    try {
+      // Cancel the orderItem
+      await updateDoc(doc(db, 'orderItems', item.id), {
+        status:       'cancelled',
+        cancelledAt:  serverTimestamp(),
+        cancelReason: 'manager_removed',
+      })
+
+      // Remove item from the parent orders doc and recalculate total
+      if (orderRow.orderId && orderRow.orderId !== 'direct') {
+        const orderSnap = await getDocs(query(
+          collection(db, 'orders'),
+          where('__name__', '==', orderRow.orderId)
+        ))
+        if (!orderSnap.empty) {
+          const orderDoc = orderSnap.docs[0]
+          const orderData = orderDoc.data()
+          const newItems = (orderData.items ?? []).filter(i => i.menuItemId !== item.menuItemId)
+          if (newItems.length === 0) {
+            await deleteDoc(doc(db, 'orders', orderDoc.id))
+          } else {
+            const newTotal = newItems.reduce((s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0)
+            await updateDoc(doc(db, 'orders', orderDoc.id), { items: newItems, total: newTotal })
+          }
+        }
+      }
+
+      toast.success(`"${item.name}" removed from order.`)
+    } catch (err) {
+      console.error(err)
+      toast.error(`Could not remove item: ${err.message ?? err}`)
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   // Live orderItems that are still active (not served/cancelled)
   const [activeItems, setActiveItems] = useState([])
@@ -222,15 +271,23 @@ export default function Orders() {
                   </div>
 
                   {/* Items with per-item status dot */}
-                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  <div className="flex flex-col gap-1">
                     {order.items.map(item => {
                       const im = ITEM_STATUS_META[item.status] ?? { dot: 'bg-gray-300', label: item.status }
                       return (
-                        <span key={item.id} className="flex items-center gap-1.5 text-sm text-gray-700">
+                        <div key={item.id} className="flex items-center gap-2">
                           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${im.dot}`} title={im.label} />
-                          <span className="font-medium">{item.name}</span>
-                          <span className="text-gray-400">×{item.qty ?? 1}</span>
-                        </span>
+                          <span className="text-sm font-medium text-gray-800">{item.name}</span>
+                          <span className="text-sm text-gray-400">×{item.qty ?? 1}</span>
+                          <span className="text-xs text-gray-400 italic">{im.label}</span>
+                          {isManager && (
+                            <button
+                              onClick={() => setPendingDelete({ item, orderRow: order })}
+                              className="ml-auto w-6 h-6 flex items-center justify-center rounded-full text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors text-sm"
+                              title="Remove item"
+                            >✕</button>
+                          )}
+                        </div>
                       )
                     })}
                   </div>
@@ -249,6 +306,45 @@ export default function Orders() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Confirmation modal */}
+      {pendingDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="text-center">
+              <p className="text-3xl mb-2">⚠️</p>
+              <h3 className="text-base font-bold text-gray-900">Remove Item?</h3>
+              <p className="text-sm text-gray-500 mt-1">
+                This will cancel{' '}
+                <span className="font-semibold text-gray-800">
+                  {pendingDelete.item.name} ×{pendingDelete.item.qty ?? 1}
+                </span>{' '}
+                from the order and cannot be undone.
+              </p>
+              {pendingDelete.item.status !== 'placed' && (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded-lg px-3 py-2 mt-2">
+                  This item is already <strong>{ITEM_STATUS_META[pendingDelete.item.status]?.label ?? pendingDelete.item.status}</strong> in the kitchen — please inform the kitchen team.
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setPendingDelete(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-gray-700 text-sm font-medium hover:bg-gray-50 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 disabled:opacity-60 text-white rounded-xl text-sm font-semibold transition"
+              >
+                {deleting ? 'Removing…' : 'Yes, Remove'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
