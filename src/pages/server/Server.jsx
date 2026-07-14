@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, getDocs } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, serverTimestamp, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import QRCode from 'react-qr-code';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
@@ -309,6 +309,8 @@ function BulkHandoffModal({ tables, onClose }) {
 // ─── Order Panel ─────────────────────────────────────────────────────────────
 
 function OrderPanel({ table, allOrderItems = [], draftGuestOrders = [], staffNameMap = {}, onRequestBill, onAddItems, onShowQR }) {
+  const [confirmingId, setConfirmingId] = useState(null);
+
   // Isolate current sitting's items.
   // Primary: match by bookingId (exact, written by TakeOrderModal).
   // Fallback: seatedAt fence for items missing bookingId.
@@ -336,36 +338,59 @@ function OrderPanel({ table, allOrderItems = [], draftGuestOrders = [], staffNam
   const allServed  = activeItems.length > 0 && ready.length === 0 && inKitchen.length === 0 && placed.length === 0;
 
   async function confirmGuestDraft(order) {
+    if (confirmingId) return;
+    const items = order.items ?? [];
+    if (items.length === 0) {
+      toast.error('This order has no items.');
+      return;
+    }
+    setConfirmingId(order.id);
     try {
-      await Promise.all(
-        (order.items ?? []).map(item =>
-          addDoc(collection(db, 'orderItems'), {
-            tableId:             order.tableId,
-            tableNumber:         order.tableNumber ?? null,
-            bookingId:           order.bookingId ?? null,
-            orderId:             order.id,
-            menuItemId:          item.menuItemId ?? null,
-            name:                item.name,
-            category:            item.category ?? 'Uncategorized',
-            station:             item.station ?? 'Main Kitchen',
-            price:               item.price ?? 0,
-            qty:                 item.qty ?? 1,
-            modifiers:           [],
-            specialInstructions: item.specialInstructions ?? '',
-            status:              'placed',
-            source:              'guest',
-            guestName:           order.guestName ?? null,
-            claimedByChefId:     null,
-            firedAt:             serverTimestamp(),
-            servedAt:            null,
-          })
-        )
-      );
-      await updateDoc(doc(db, 'orders', order.id), { status: 'new', confirmedAt: serverTimestamp() });
-      toast.success(`Guest order confirmed — sent to kitchen.`);
+      const batch = writeBatch(db);
+
+      // Create one orderItem per item in the guest's draft
+      items.forEach(item => {
+        const ref = doc(collection(db, 'orderItems'));
+        batch.set(ref, {
+          tableId:             order.tableId,
+          tableNumber:         order.tableNumber ?? null,
+          bookingId:           order.bookingId ?? null,
+          orderId:             order.id,
+          menuItemId:          item.menuItemId ?? null,
+          name:                item.name,
+          category:            item.category ?? 'Uncategorized',
+          station:             item.station ?? 'Main Kitchen',
+          price:               item.price ?? 0,
+          qty:                 item.qty ?? 1,
+          modifiers:           [],
+          specialInstructions: order.note ?? '',
+          status:              'placed',
+          source:              'guest',
+          guestName:           order.guestName ?? null,
+          claimedByChefId:     null,
+          firedAt:             serverTimestamp(),
+          servedAt:            null,
+        });
+      });
+
+      // Promote the draft order to 'new' (visible in kitchen)
+      batch.update(doc(db, 'orders', order.id), {
+        status:      'new',
+        confirmedAt: serverTimestamp(),
+      });
+
+      // Move table from 'occupied' to 'ordering' so floor knows food is on the way
+      if (table.status === 'occupied') {
+        batch.update(doc(db, 'tables', table.id), { status: 'ordering' });
+      }
+
+      await batch.commit();
+      toast.success(`${items.length} item${items.length > 1 ? 's' : ''} sent to kitchen.`);
     } catch (err) {
-      console.error(err);
-      toast.error('Could not confirm order.');
+      console.error('confirmGuestDraft error:', err);
+      toast.error(`Could not confirm order: ${err.message ?? err}`);
+    } finally {
+      setConfirmingId(null);
     }
   }
 
@@ -468,9 +493,10 @@ function OrderPanel({ table, allOrderItems = [], draftGuestOrders = [], staffNam
                     </div>
                     <button
                       onClick={() => confirmGuestDraft(order)}
-                      className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-lg font-semibold transition"
+                      disabled={confirmingId === order.id}
+                      className="text-xs px-3 py-1.5 bg-amber-500 hover:bg-amber-600 disabled:opacity-60 disabled:cursor-wait text-white rounded-lg font-semibold transition"
                     >
-                      ✓ Confirm & Send to Kitchen
+                      {confirmingId === order.id ? 'Sending…' : '✓ Confirm & Send to Kitchen'}
                     </button>
                   </div>
                   <div className="space-y-1">
