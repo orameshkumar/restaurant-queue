@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { updateDoc, doc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { updateDoc, doc, serverTimestamp, getDoc, writeBatch } from 'firebase/firestore';
 import toast from 'react-hot-toast';
 import { useLocation } from 'react-router-dom';
 import { db } from '../../firebase/config';
@@ -100,6 +100,40 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
     }
   }
 
+  async function handleMarkOutOfStock() {
+    if (!item.menuItemId) { toast.error('No menu item linked to this order item.'); return; }
+    if (!window.confirm(`Mark "${item.name}" as OUT OF STOCK?\n\nThis will:\n• Cancel this order item (bill adjusted)\n• Hide the item from all menus until re-enabled by a manager`)) return;
+    try {
+      const batch = writeBatch(db);
+      // Cancel the current order item
+      batch.update(doc(db, 'orderItems', item.id), {
+        status: 'cancelled',
+        cancelledAt: serverTimestamp(),
+        cancelReason: 'not_available',
+      });
+      // Mark menu item unavailable globally
+      batch.update(doc(db, 'menuItems', item.menuItemId), { available: false });
+      await batch.commit();
+      // Also remove from the orders doc (best-effort, same as handleNotAvailable)
+      if (item.orderId) {
+        const orderSnap = await getDoc(doc(db, 'orders', item.orderId));
+        if (orderSnap.exists()) {
+          const orderData = orderSnap.data();
+          const idx = (orderData.items ?? []).findIndex(i => i.menuItemId === item.menuItemId);
+          if (idx !== -1) {
+            const newItems = orderData.items.filter((_, i) => i !== idx);
+            const newTotal = newItems.reduce((s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0);
+            await updateDoc(doc(db, 'orders', item.orderId), { items: newItems, total: newTotal });
+          }
+        }
+      }
+      toast.success(`"${item.name}" marked Out of Stock. Re-enable it from the Menu page.`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to mark out of stock.');
+    }
+  }
+
   async function handleRelease() {
     try {
       if (item.status === 'ready') {
@@ -186,15 +220,24 @@ function ItemCard({ item, tables, staffMap, currentProfile, tick }) {
             ×
           </button>
         )}
-        {/* Not Available — placed (unclaimed, any staff) or in-preparation (claimed chef + manager) */}
+        {/* Not Available — cancel this order item only */}
         {(
           (item.status === 'placed' && !item.claimedByChefId) ||
           (item.status === 'in-preparation' && (isClaimedByMe || isManager))
         ) && (
           <button onClick={handleNotAvailable} className="w-full mt-1 bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-semibold rounded-lg px-3 py-1.5 transition-colors">
-            Out of Stock / Not Available
+            Not Available (this order)
           </button>
         )}
+        {/* Out of Stock — cancel this item AND mark menu item unavailable globally (manager+ only) */}
+        {isManager && item.menuItemId && (
+          (item.status === 'placed' && !item.claimedByChefId) ||
+          (item.status === 'in-preparation' && (isClaimedByMe || isManager))
+        ) ? (
+          <button onClick={handleMarkOutOfStock} className="w-full mt-1 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-lg px-3 py-1.5 transition-colors">
+            Out of Stock
+          </button>
+        ) : null}
       </div>
     </div>
   );
