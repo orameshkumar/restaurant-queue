@@ -9,6 +9,7 @@ import {
   writeBatch,
   query,
   orderBy,
+  where,
   Timestamp,
   increment,
   doc,
@@ -30,6 +31,9 @@ export default function InvWastage() {
   const [reason, setReason] = useState('')
   const [items, setItems] = useState([{ materialId: '', materialName: '', uom: '', qty: '', currentStock: 0, search: '', results: [], showDropdown: false }])
 
+  const [issuedRequests, setIssuedRequests] = useState([])
+  const [showRequestPicker, setShowRequestPicker] = useState(false)
+
   const [filterFrom, setFilterFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [filterTo, setFilterTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
   const [expandedRow, setExpandedRow] = useState(null)
@@ -37,11 +41,47 @@ export default function InvWastage() {
   useEffect(() => {
     fetchMaterials()
     fetchHistory()
+    fetchIssuedRequests()
   }, [])
 
   async function fetchMaterials() {
     const snap = await getDocs(collection(db, 'invMaterials'))
     setMaterials(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  }
+
+  async function fetchIssuedRequests() {
+    try {
+      const snap = await getDocs(query(
+        collection(db, 'invRequests'),
+        where('status', '==', 'issued'),
+        orderBy('date', 'desc')
+      ))
+      setIssuedRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    } catch {
+      // non-critical
+    }
+  }
+
+  function loadFromRequest(req) {
+    const loaded = (req.items || []).map(it => {
+      const mat = materials.find(m => m.id === it.materialId)
+      return {
+        materialId: it.materialId,
+        materialName: it.materialName,
+        uom: it.uom,
+        qty: it.qty ?? '',
+        currentStock: mat?.currentStock ?? 0,
+        search: it.materialName,
+        results: [],
+        showDropdown: false,
+      }
+    })
+    if (loaded.length > 0) {
+      setItems(loaded)
+      if (!reason) setReason('From request: ' + (req.requestedByName || req.notes || ''))
+    }
+    setShowRequestPicker(false)
+    toast.success(`Loaded ${loaded.length} item${loaded.length !== 1 ? 's' : ''} from request`)
   }
 
   async function fetchHistory() {
@@ -236,7 +276,15 @@ export default function InvWastage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Items</label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">Items</label>
+                {issuedRequests.length > 0 && (
+                  <button type="button" onClick={() => setShowRequestPicker(true)}
+                    className="border border-amber-400 text-amber-700 px-3 py-1 rounded-lg text-xs font-medium hover:bg-amber-50">
+                    Load from Request
+                  </button>
+                )}
+              </div>
               <div className="space-y-3">
                 {items.map((item, idx) => (
                   <div key={idx} className="flex flex-wrap gap-2 items-start bg-gray-50 rounded-lg p-3 border border-gray-200">
@@ -433,6 +481,45 @@ export default function InvWastage() {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {showRequestPicker && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col max-h-[80vh]">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h3 className="text-base font-semibold text-gray-800">Select Issued Request</h3>
+              <button onClick={() => setShowRequestPicker(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <div className="flex-1 overflow-y-auto divide-y">
+              {issuedRequests.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-gray-400">No issued requests found</p>
+              ) : (
+                issuedRequests.map(req => (
+                  <button key={req.id} onClick={() => loadFromRequest(req)}
+                    className="w-full text-left px-5 py-3 hover:bg-amber-50 space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium text-gray-800 text-sm">{req.requestedByName || '—'}</span>
+                      <span className="text-xs text-gray-400">
+                        {req.date?.toDate ? format(req.date.toDate(), 'dd MMM yyyy') : '—'}
+                      </span>
+                    </div>
+                    <div className="text-xs text-gray-500">
+                      {(req.items || []).slice(0, 3).map(it => `${it.materialName} (${it.qty} ${it.uom})`).join(', ')}
+                      {(req.items || []).length > 3 ? ` +${req.items.length - 3} more` : ''}
+                    </div>
+                    {req.notes && <div className="text-xs text-gray-400 italic">{req.notes}</div>}
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="px-5 py-3 border-t flex justify-end">
+              <button onClick={() => setShowRequestPicker(false)}
+                className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       )}
