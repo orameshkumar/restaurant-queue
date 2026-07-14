@@ -189,7 +189,7 @@ export default function InvWastage() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 w-full">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Wastage Recording</h1>
 
       <div className="flex gap-2 mb-6">

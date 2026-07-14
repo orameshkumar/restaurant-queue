@@ -168,7 +168,7 @@ export default function InvVendors() {
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
-    <div className="p-4 max-w-5xl mx-auto">
+    <div className="p-4 w-full">
       {/* Toast */}
       {toast && (
         <div

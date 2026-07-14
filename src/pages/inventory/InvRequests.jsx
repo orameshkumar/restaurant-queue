@@ -3,7 +3,7 @@ import { db } from '../../firebase/config'
 import { useAuth } from '../../context/AuthContext'
 import toast from 'react-hot-toast'
 import {
-  collection, addDoc, getDocs, doc, updateDoc,
+  collection, addDoc, getDocs, doc, updateDoc, deleteDoc,
   writeBatch, query, where, orderBy, Timestamp, increment
 } from 'firebase/firestore'
 import { format } from 'date-fns'
@@ -46,6 +46,8 @@ export default function InvRequests() {
   const [issueRequest, setIssueRequest] = useState(null)
   const [issueQtys, setIssueQtys] = useState({})
   const [issuing, setIssuing] = useState(false)
+  const [deleteTarget, setDeleteTarget] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
     fetchMaterials()
@@ -132,8 +134,8 @@ export default function InvRequests() {
           uom: fi.uom,
           qty: parseFloat(fi.requestedQty) || 0,
         })),
-        createdBy: profile.uid,
-        createdByName: profile.name,
+        createdBy: profile?.id || '',
+        createdByName: profile?.name || profile?.email || '',
       })
       toast.success('Template saved')
       setTemplateName('')
@@ -154,8 +156,8 @@ export default function InvRequests() {
     try {
       await addDoc(collection(db, 'invRequests'), {
         date: Timestamp.now(),
-        requestedBy: profile.uid,
-        requestedByName: profile.name,
+        requestedBy: profile?.id || '',
+        requestedByName: profile?.name || profile?.email || '',
         status: 'pending',
         items: formItems.map(fi => ({
           materialId: fi.materialId,
@@ -230,6 +232,21 @@ export default function InvRequests() {
     }
   }
 
+  async function handleDelete() {
+    if (!deleteTarget) return
+    setDeleting(true)
+    try {
+      await deleteDoc(doc(db, 'invRequests', deleteTarget.id))
+      toast.success('Request deleted')
+      setDeleteTarget(null)
+      fetchRequests()
+    } catch {
+      toast.error('Failed to delete request')
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   const pendingRequests = requests.filter(r => r.status === 'pending' || r.status === 'partial')
 
   const filteredHistory = requests.filter(r => {
@@ -243,7 +260,7 @@ export default function InvRequests() {
   })
 
   return (
-    <div className="max-w-5xl mx-auto p-4 space-y-4">
+    <div className="w-full p-4 space-y-4">
       <h1 className="text-2xl font-bold text-gray-800">Material Requests</h1>
 
       <div className="flex gap-2 border-b border-gray-200">
@@ -418,13 +435,12 @@ export default function InvRequests() {
                     <th className="px-4 py-3">Items</th>
                     <th className="px-4 py-3">Notes</th>
                     <th className="px-4 py-3">Status</th>
+                    <th className="px-4 py-3"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {filteredHistory.map(req => (
-                    <tr key={req.id}
-                      className={`hover:bg-amber-50 ${canIssue && (req.status === 'pending' || req.status === 'partial') ? 'cursor-pointer' : ''}`}
-                      onClick={() => canIssue && (req.status === 'pending' || req.status === 'partial') && openIssueModal(req)}>
+                    <tr key={req.id} className="hover:bg-amber-50">
                       <td className="px-4 py-3 text-gray-700 whitespace-nowrap">{format(req.date.toDate(), 'dd MMM yyyy')}</td>
                       <td className="px-4 py-3 font-medium text-gray-800">{req.requestedByName}</td>
                       <td className="px-4 py-3 text-gray-600">
@@ -440,6 +456,20 @@ export default function InvRequests() {
                       <td className="px-4 py-3 text-gray-500 text-xs max-w-xs truncate">{req.notes || '—'}</td>
                       <td className="px-4 py-3">
                         <span className={`text-xs px-2 py-1 rounded-full font-medium ${STATUS_COLORS[req.status]}`}>{req.status}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex gap-2">
+                          {canIssue && (req.status === 'pending' || req.status === 'partial') && (
+                            <button onClick={() => openIssueModal(req)}
+                              className="text-xs border border-amber-400 text-amber-600 hover:bg-amber-50 px-2 py-1 rounded">
+                              Issue
+                            </button>
+                          )}
+                          <button onClick={() => setDeleteTarget(req)}
+                            className="text-xs border border-red-300 text-red-500 hover:bg-red-50 px-2 py-1 rounded">
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -556,6 +586,25 @@ export default function InvRequests() {
               <button onClick={handleIssue} disabled={issuing}
                 className="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-50">
                 {issuing ? 'Issuing...' : 'Confirm Issue'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <h3 className="text-lg font-semibold text-gray-800">Delete Request</h3>
+            <p className="text-sm text-gray-600">
+              Delete request by <span className="font-semibold">{deleteTarget.requestedByName}</span> on {format(deleteTarget.date.toDate(), 'dd MMM yyyy')}? This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button onClick={() => setDeleteTarget(null)}
+                className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+              <button onClick={handleDelete} disabled={deleting}
+                className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium disabled:opacity-60">
+                {deleting ? 'Deleting...' : 'Delete'}
               </button>
             </div>
           </div>
