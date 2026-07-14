@@ -36,6 +36,10 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    match /refunds/{id} {
+      allow read, write: if isSignedIn();
+    }
+
     match /restaurantSettings/{id} {
       allow read: if true;
       allow write: if isSignedIn();
