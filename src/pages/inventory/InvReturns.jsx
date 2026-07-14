@@ -9,7 +9,7 @@ import {
 import { format } from 'date-fns'
 
 export default function InvReturns() {
-  const { currentUser } = useAuth()
+  const { user, profile } = useAuth()
   const [materials, setMaterials] = useState([])
   const [returns, setReturns] = useState([])
   const [issuedRequests, setIssuedRequests] = useState([])
@@ -114,8 +114,8 @@ export default function InvReturns() {
       const returnRef = doc(collection(db, 'invReturns'))
       batch.set(returnRef, {
         date: returnDate,
-        returnedBy: currentUser.uid,
-        returnedByName: currentUser.displayName || currentUser.email,
+        returnedBy: user?.uid || '',
+        returnedByName: profile?.name || user?.email || '',
         items: form.items.map(i => ({ ...i, qty: Number(i.qty) })),
         notes: form.notes
       })
@@ -136,7 +136,7 @@ export default function InvReturns() {
           refId: returnRef.id,
           refType: 'invReturns',
           note: form.notes || '',
-          recordedBy: currentUser.uid
+          recordedBy: user?.uid || ''
         })
       }
 

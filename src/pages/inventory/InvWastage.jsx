@@ -16,7 +16,7 @@ import {
 import { format, startOfMonth, endOfMonth, parseISO, startOfDay, endOfDay } from 'date-fns'
 
 export default function InvWastage() {
-  const { currentUser } = useAuth()
+  const { user, profile } = useAuth()
 
   const [materials, setMaterials] = useState([])
   const [wastageHistory, setWastageHistory] = useState([])
@@ -111,8 +111,8 @@ export default function InvWastage() {
       const wastageRef = doc(collection(db, 'invWastage'))
       batch.set(wastageRef, {
         date: dateTs,
-        recordedBy: currentUser.uid,
-        recordedByName: currentUser.displayName || currentUser.email,
+        recordedBy: user?.uid || '',
+        recordedByName: profile?.name || user?.email || '',
         reason: reason.trim(),
         items: validItems.map(it => ({
           materialId: it.materialId,
@@ -138,7 +138,7 @@ export default function InvWastage() {
           refId: wastageRef.id,
           refType: 'invWastage',
           note: reason.trim(),
-          recordedBy: currentUser.uid,
+          recordedBy: user?.uid || '',
         })
       }
 

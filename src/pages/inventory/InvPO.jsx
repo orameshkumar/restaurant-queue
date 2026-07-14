@@ -16,7 +16,7 @@ const STATUS_COLORS = {
 }
 
 export default function InvPO() {
-  const { user } = useAuth()
+  const { user, profile } = useAuth()
   const [activeTab, setActiveTab] = useState('generate')
   const [materials, setMaterials] = useState([])
   const [vendors, setVendors] = useState([])
@@ -128,7 +128,7 @@ export default function InvPO() {
         name: templateName.trim(),
         items: poItems.map(({ materialId, materialName, uom, orderedQty }) => ({ materialId, materialName, uom, qty: orderedQty })),
         createdBy: user.uid,
-        createdByName: user.displayName || user.email,
+        createdByName: profile?.name || user?.email || '',
       })
       toast.success('Template saved')
       setTemplateName('')
@@ -254,7 +254,7 @@ export default function InvPO() {
           date: Timestamp.now(),
           poId: null,
           receivedBy: user.uid,
-          receivedByName: user.displayName || user.email,
+          receivedByName: profile?.name || user?.email || '',
           items: receiptItems2,
           notes: receiptNotes,
         })
@@ -294,7 +294,7 @@ export default function InvPO() {
         date: Timestamp.now(),
         poId: receiptPO.id,
         receivedBy: user.uid,
-        receivedByName: user.displayName || user.email,
+        receivedByName: profile?.name || user?.email || '',
         items: receiptItemsData,
         notes: receiptNotes,
       })
