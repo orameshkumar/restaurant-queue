@@ -1,4 +1,7 @@
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore'
+import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useCollection'
 import PageHeader from '../../components/PageHeader'
 
@@ -33,15 +36,54 @@ const STATUS_STYLES = {
 
 export default function Dashboard() {
   const navigate = useNavigate()
-  const { docs: tables   = [] } = useCollection('tables',     'tableNumber')
-  const { docs: bookings = [] } = useCollection('bookings', null, null, [['date', '==', TODAY]])
-  const { docs: orderItems= []} = useCollection('orderItems', 'firedAt')
-  const { docs: bills    = [] } = useCollection('bills', null, null, [['closedDate', '==', TODAY]])
+  const { docs: tables    = [] } = useCollection('tables',     'tableNumber')
+  const { docs: bookings  = [] } = useCollection('bookings', null, null, [['date', '==', TODAY]])
+  const { docs: orderItems = [] } = useCollection('orderItems', 'firedAt')
+  const { docs: bills     = [] } = useCollection('bills', null, null, [['closedDate', '==', TODAY]])
+
+  const [takeawayRevenue,     setTakeawayRevenue]     = useState(0)
+  const [takeawayActiveCount, setTakeawayActiveCount] = useState(0)
+  const [refundsToday,        setRefundsToday]        = useState(0)
+
+  useEffect(() => {
+    const start = new Date(); start.setHours(0, 0, 0, 0)
+    const end   = new Date(); end.setHours(23, 59, 59, 999)
+    const tsStart = Timestamp.fromDate(start)
+    const tsEnd   = Timestamp.fromDate(end)
+
+    getDocs(query(
+      collection(db, 'orders'),
+      where('createdAt', '>=', tsStart),
+      where('createdAt', '<=', tsEnd)
+    )).then(snap => {
+      const orders = snap.docs.map(d => d.data())
+      const revenue = orders
+        .filter(o => ['handed-over', 'completed', 'delivered'].includes(o.status))
+        .reduce((s, o) => s + (o.total ?? 0), 0)
+      const active = orders
+        .filter(o => !['handed-over', 'completed', 'delivered', 'cancelled'].includes(o.status))
+        .length
+      setTakeawayRevenue(revenue)
+      setTakeawayActiveCount(active)
+    }).catch(() => {})
+
+    getDocs(query(
+      collection(db, 'refunds'),
+      where('createdAt', '>=', tsStart),
+      where('createdAt', '<=', tsEnd)
+    )).then(snap => {
+      const total = snap.docs.reduce((s, d) => s + (d.data().amount ?? 0), 0)
+      setRefundsToday(total)
+    }).catch(() => {})
+  }, [])
 
   const tablesOccupied = tables.filter((t) => ['occupied','ordering','eating','bill_requested'].includes(t.status)).length
   const waitingQueue   = bookings.filter((b) => b.status === 'waiting').sort((a, b) => (a.queueSequence ?? 0) - (b.queueSequence ?? 0))
   const activeItems    = orderItems.filter((i) => ['placed','in-kitchen','in-preparation'].includes(i.status))
-  const revenueToday   = bills.reduce((sum, b) => sum + (b.total ?? 0), 0)
+
+  const dineInRevenue  = bills.reduce((s, b) => s + (b.total ?? 0), 0)
+  const revenueToday   = dineInRevenue + takeawayRevenue - refundsToday
+  const totalActive    = activeItems.length + takeawayActiveCount
 
   const kitchenStatuses = ['placed', 'in-kitchen', 'in-preparation', 'ready', 'served']
   const kitchenCounts   = Object.fromEntries(
@@ -55,8 +97,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard icon="🪑" value={tablesOccupied}  label="Tables Occupied"  color="text-amber-500" onClick={() => navigate('/host', { state: { filterStatus: 'occupied' } })} />
         <StatCard icon="⏳" value={waitingQueue.length} label="Waiting Queue" color="text-blue-500" onClick={() => navigate('/host', { state: { activeTab: 'queue' } })} />
-        <StatCard icon="🍳" value={activeItems.length}  label="Active Orders" color="text-orange-500" onClick={() => navigate('/orders')} />
-        <StatCard icon="💰" value={`₹${revenueToday.toLocaleString('en-IN')}`} label="Revenue Today" color="text-green-500" />
+        <StatCard icon="🍳" value={totalActive} label="Active Orders" color="text-orange-500" onClick={() => navigate('/orders')} />
+        <StatCard icon="💰" value={`₹${revenueToday.toLocaleString('en-IN')}`} label={`Revenue Today${refundsToday > 0 ? ` (−₹${refundsToday.toLocaleString('en-IN')} refunds)` : ''}`} color="text-green-500" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
