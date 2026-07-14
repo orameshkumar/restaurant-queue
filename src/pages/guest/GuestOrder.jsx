@@ -166,7 +166,7 @@ export default function GuestOrder() {
         <p className="text-gray-500 text-sm">
           {autoFire
             ? 'Your order is on its way to the kitchen. Sit back and relax!'
-            : 'Your order has been sent to the kitchen. Sit back and relax!'}
+            : 'Your order has been sent to your server for review. They will confirm it shortly.'}
         </p>
         <button
           onClick={() => { setSubmitted(false); setCart({}); setNote(''); setShowConfirm(false) }}
