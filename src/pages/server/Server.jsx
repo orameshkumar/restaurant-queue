@@ -308,7 +308,7 @@ function BulkHandoffModal({ tables, onClose }) {
 
 // ─── Order Panel ─────────────────────────────────────────────────────────────
 
-function OrderPanel({ table, allOrderItems = [], draftGuestOrders = [], onRequestBill, onAddItems, onShowQR }) {
+function OrderPanel({ table, allOrderItems = [], draftGuestOrders = [], staffNameMap = {}, onRequestBill, onAddItems, onShowQR }) {
   // Isolate current sitting's items.
   // Primary: match by bookingId (exact, written by TakeOrderModal).
   // Fallback: seatedAt fence for items missing bookingId.
@@ -615,6 +615,10 @@ export default function Server() {
     () => allStaff.filter(s => s.active !== false),
     [allStaff]
   );
+  const staffNameMap = useMemo(
+    () => Object.fromEntries(allStaff.map(s => [s.id, s.name])),
+    [allStaff]
+  );
   const sections = useMemo(
     () => [...new Set(allTables.map(t => t.section).filter(Boolean))].sort(),
     [allTables]
@@ -865,7 +869,10 @@ export default function Server() {
                 <OrderPanel
                   table={liveSelectedTable}
                   allOrderItems={allOrderItems}
-                  draftGuestOrders={draftGuestByTable[liveSelectedTable.id] ?? []}
+                  draftGuestOrders={(draftGuestByTable[liveSelectedTable.id] ?? []).filter(
+                    o => !o.bookingId || o.bookingId === liveSelectedTable.currentBookingId
+                  )}
+                  staffNameMap={staffNameMap}
                   onRequestBill={handleRequestBill}
                   onAddItems={(t) => setAddItemsTable(t)}
                   onShowQR={(t) => setQrTable(t)}
