@@ -24,16 +24,20 @@ const TABS = [
   { key: 'ledger', label: 'Ledger', icon: '📒', roles: ['admin', 'manager', 'kitchen_manager'] },
 ]
 
-function SummaryCard({ label, value, valueClass = 'text-gray-900' }) {
+function SummaryCard({ label, value, valueClass = 'text-gray-900', onClick }) {
   return (
-    <div className="bg-white rounded-xl shadow-sm border p-5 flex flex-col gap-1">
+    <div
+      onClick={onClick}
+      className={`bg-white rounded-xl shadow-sm border p-5 flex flex-col gap-1 ${onClick ? 'cursor-pointer hover:border-amber-400 hover:shadow-md transition-all' : ''}`}
+    >
       <span className="text-sm text-gray-500">{label}</span>
       <span className={`text-3xl font-bold ${valueClass}`}>{value}</span>
+      {onClick && <span className="text-xs text-amber-500 mt-1">Tap to view →</span>}
     </div>
   )
 }
 
-function Overview({ onGeneratePO }) {
+function Overview({ onGeneratePO, onNavigate }) {
   const [materials, setMaterials] = useState([])
   const [pendingRequests, setPendingRequests] = useState(0)
   const [draftPOs, setDraftPOs] = useState(0)
@@ -73,8 +77,8 @@ function Overview({ onGeneratePO }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <SummaryCard label="Total Materials" value={materials.length} />
         <SummaryCard label="Low Stock" value={lowStock.length} valueClass={lowStock.length > 0 ? 'text-red-600' : 'text-gray-900'} />
-        <SummaryCard label="Pending Requests" value={pendingRequests} valueClass={pendingRequests > 0 ? 'text-amber-600' : 'text-gray-900'} />
-        <SummaryCard label="Draft POs" value={draftPOs} valueClass={draftPOs > 0 ? 'text-blue-600' : 'text-gray-900'} />
+        <SummaryCard label="Pending Requests" value={pendingRequests} valueClass={pendingRequests > 0 ? 'text-amber-600' : 'text-gray-900'} onClick={() => onNavigate('requests')} />
+        <SummaryCard label="Draft POs" value={draftPOs} valueClass={draftPOs > 0 ? 'text-blue-600' : 'text-gray-900'} onClick={() => onNavigate('purchase-orders')} />
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border">
@@ -191,7 +195,7 @@ export default function Inventory() {
   function renderContent() {
     switch (activeTab) {
       case 'overview':
-        return <Overview onGeneratePO={handleGeneratePO} />
+        return <Overview onGeneratePO={handleGeneratePO} onNavigate={setActiveTab} />
       case 'materials':
         return <InvMaterials />
       case 'vendors':
