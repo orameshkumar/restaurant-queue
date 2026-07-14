@@ -265,7 +265,7 @@ export default function InvPO() {
             materialId: it.materialId, materialName: it.materialName, uom: it.uom,
             date: Timestamp.now(), txType: 'receive', qty: it.qty,
             refId: receiptRef.id, refType: 'receipt', note: receiptNotes || '',
-            recordedBy: user.uid,
+            recordedBy: user.uid, recordedByName: profile?.name || user?.email || '',
           })
         })
         await batch.commit()
@@ -313,7 +313,7 @@ export default function InvPO() {
           materialId: it.materialId, materialName: it.materialName, uom: it.uom,
           date: Timestamp.now(), txType: 'receive', qty: it.qty,
           refId: receiptRef.id, refType: 'receipt', note: receiptNotes || '',
-          recordedBy: user.uid,
+          recordedBy: user.uid, recordedByName: profile?.name || user?.email || '',
         })
       })
       await batch.commit()
@@ -334,7 +334,7 @@ export default function InvPO() {
   if (loading) return <div className="flex items-center justify-center h-64 text-gray-400">Loading...</div>
 
   return (
-    <div className="space-y-4">
+    <div className="w-full space-y-4">
       <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
         {[['generate', 'Generate PO'], ['list', 'PO List'], ['receive', 'Receive Stock']].map(([key, label]) => (
           <button key={key} onClick={() => setActiveTab(key)}
@@ -404,27 +404,27 @@ export default function InvPO() {
                   Save as Template
                 </button>
               </div>
-              <div className="rounded-lg border overflow-hidden">
+              <div className="rounded-lg border overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="text-left px-4 py-2 font-medium text-gray-600">Material</th>
-                      <th className="text-center px-4 py-2 font-medium text-gray-600">UOM</th>
-                      <th className="text-center px-4 py-2 font-medium text-gray-600">Qty</th>
+                      <th className="text-left px-4 py-2 font-medium text-gray-600 whitespace-nowrap">Material</th>
+                      <th className="text-center px-4 py-2 font-medium text-gray-600 whitespace-nowrap">UOM</th>
+                      <th className="text-center px-4 py-2 font-medium text-gray-600 whitespace-nowrap">Qty</th>
                       <th className="px-4 py-2"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y">
                     {poItems.map((it, idx) => (
                       <tr key={idx} className="hover:bg-gray-50">
-                        <td className="px-4 py-2">{it.materialName}</td>
-                        <td className="px-4 py-2 text-center text-gray-500">{it.uom}</td>
+                        <td className="px-4 py-2 whitespace-nowrap">{it.materialName}</td>
+                        <td className="px-4 py-2 text-center text-gray-500 whitespace-nowrap">{it.uom}</td>
                         <td className="px-4 py-2 text-center">
                           <input type="number" min="0" value={it.orderedQty} onChange={e => updateItemQty(idx, e.target.value)}
                             className="w-20 border border-gray-300 rounded px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
                         </td>
                         <td className="px-4 py-2 text-right">
-                          <button onClick={() => removeItem(idx)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
+                          <button onClick={() => removeItem(idx)} className="border border-red-300 text-red-500 hover:bg-red-50 px-2 py-1 rounded text-xs font-medium">🗑 Remove</button>
                         </td>
                       </tr>
                     ))}
@@ -499,7 +499,7 @@ export default function InvPO() {
           {filteredPOs.length === 0 ? (
             <div className="text-center py-12 text-gray-400">No purchase orders found</div>
           ) : (
-            <div className="rounded-lg border overflow-hidden">
+            <div className="rounded-lg border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
@@ -550,7 +550,7 @@ export default function InvPO() {
               <div><span className="text-gray-500">PO#:</span> <span className="font-medium">{viewPO.id.slice(-6).toUpperCase()}</span></div>
               {viewPO.vendorPhone && <div><span className="text-gray-500">Phone:</span> <span className="font-medium">{viewPO.vendorPhone}</span></div>}
             </div>
-            <div className="rounded-lg border overflow-hidden">
+            <div className="rounded-lg border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
@@ -621,7 +621,7 @@ export default function InvPO() {
               </div>
 
               {receiptPO && (
-                <div className="rounded-lg border overflow-hidden">
+                <div className="rounded-lg border overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>
@@ -676,27 +676,27 @@ export default function InvPO() {
               </div>
 
               {adhocItems.length > 0 && (
-                <div className="rounded-lg border overflow-hidden">
+                <div className="rounded-lg border overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="text-left px-4 py-2 font-medium text-gray-600">Material</th>
-                        <th className="text-center px-4 py-2 font-medium text-gray-600">UOM</th>
-                        <th className="text-center px-4 py-2 font-medium text-gray-600">Qty</th>
+                        <th className="text-left px-4 py-2 font-medium text-gray-600 whitespace-nowrap">Material</th>
+                        <th className="text-center px-4 py-2 font-medium text-gray-600 whitespace-nowrap">UOM</th>
+                        <th className="text-center px-4 py-2 font-medium text-gray-600 whitespace-nowrap">Qty</th>
                         <th className="px-4 py-2"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
                       {adhocItems.map((it, idx) => (
                         <tr key={idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-2">{it.materialName}</td>
-                          <td className="px-4 py-2 text-center text-gray-500">{it.uom}</td>
+                          <td className="px-4 py-2 whitespace-nowrap">{it.materialName}</td>
+                          <td className="px-4 py-2 text-center text-gray-500 whitespace-nowrap">{it.uom}</td>
                           <td className="px-4 py-2 text-center">
                             <input type="number" min="0" value={it.qty} onChange={e => updateAdhocQty(idx, e.target.value)}
                               className="w-20 border border-gray-300 rounded px-2 py-1 text-center text-sm focus:outline-none focus:ring-2 focus:ring-amber-400" />
                           </td>
                           <td className="px-4 py-2 text-right">
-                            <button onClick={() => removeAdhocItem(idx)} className="text-red-400 hover:text-red-600 text-xs">Remove</button>
+                            <button onClick={() => removeAdhocItem(idx)} className="border border-red-300 text-red-500 hover:bg-red-50 px-2 py-1 rounded text-xs font-medium">🗑 Remove</button>
                           </td>
                         </tr>
                       ))}

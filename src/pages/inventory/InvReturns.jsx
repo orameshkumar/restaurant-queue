@@ -136,7 +136,7 @@ export default function InvReturns() {
           refId: returnRef.id,
           refType: 'invReturns',
           note: form.notes || '',
-          recordedBy: user?.uid || ''
+          recordedBy: user?.uid || '', recordedByName: profile?.name || user?.email || ''
         })
       }
 
@@ -245,7 +245,7 @@ export default function InvReturns() {
             </div>
 
             {form.items.length > 0 && (
-              <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="border border-gray-200 rounded-lg overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
@@ -356,10 +356,11 @@ export default function InvReturns() {
         {returns.length === 0 ? (
           <div className="px-6 py-10 text-center text-sm text-gray-400">No returns recorded yet.</div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Date</th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600 whitespace-nowrap">Date</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Returned By</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Items</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">Summary</th>
@@ -389,7 +390,8 @@ export default function InvReturns() {
                     <tr key={ret.id + '-exp'}>
                       <td colSpan={6} className="px-6 pb-4 bg-amber-50/40">
                         <div className="pt-2">
-                          <table className="w-full text-sm border border-gray-200 rounded-lg overflow-hidden">
+                          <div className="border border-gray-200 rounded-lg overflow-x-auto">
+                          <table className="w-full text-sm">
                             <thead className="bg-white">
                               <tr>
                                 <th className="text-left px-4 py-2 font-medium text-gray-600">#</th>
@@ -409,6 +411,7 @@ export default function InvReturns() {
                               ))}
                             </tbody>
                           </table>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -417,6 +420,7 @@ export default function InvReturns() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

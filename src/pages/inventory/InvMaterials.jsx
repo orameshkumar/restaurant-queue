@@ -128,7 +128,7 @@ export default function InvMaterials() {
       batch.set(doc(collection(db, 'invLedger')), {
         materialId: adjTarget.id, materialName: adjTarget.name, uom: adjTarget.uom,
         date: Timestamp.now(), txType: 'adjustment', qty,
-        refId: '', refType: 'adjustment', note: adjForm.reason.trim(), recordedBy: user?.uid || '',
+        refId: '', refType: 'adjustment', note: adjForm.reason.trim(), recordedBy: user?.uid || '', recordedByName: profile?.name || user?.email || '',
       })
       await batch.commit()
       toast.success('Stock adjusted')

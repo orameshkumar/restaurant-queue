@@ -17,7 +17,7 @@ const STATUS_COLORS = {
 const ISSUE_ROLES = ['admin', 'manager', 'kitchen_manager']
 
 export default function InvRequests() {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const canIssue = ISSUE_ROLES.includes(profile?.role)
 
   const [activeTab, setActiveTab] = useState('new')
@@ -217,7 +217,7 @@ export default function InvRequests() {
           refId: issueRequest.id,
           refType: 'invRequests',
           note: `Issued to ${issueRequest.requestedByName}`,
-          recordedBy: profile?.uid || '',
+          recordedBy: user?.uid || '', recordedByName: profile?.name || user?.email || '',
         })
       }
       await batch.commit()
@@ -427,6 +427,7 @@ export default function InvRequests() {
             {filteredHistory.length === 0 ? (
               <p className="text-gray-500 text-sm py-8 text-center">No requests found</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr className="text-left text-gray-500 text-xs uppercase">
@@ -475,6 +476,7 @@ export default function InvRequests() {
                   ))}
                 </tbody>
               </table>
+              </div>
             )}
           </div>
         </div>
@@ -490,12 +492,23 @@ export default function InvRequests() {
             {templates.length === 0 ? (
               <p className="text-gray-500 text-sm py-4 text-center">No kitchen templates saved yet</p>
             ) : (
-              <div className="divide-y divide-gray-100 max-h-72 overflow-y-auto">
+              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
                 {templates.map(tpl => (
                   <button key={tpl.id} onClick={() => loadTemplate(tpl)}
-                    className="w-full text-left px-2 py-3 hover:bg-amber-50 rounded space-y-1">
-                    <div className="font-medium text-gray-800">{tpl.name}</div>
-                    <div className="text-xs text-gray-500">{tpl.items.length} item{tpl.items.length !== 1 ? 's' : ''} · by {tpl.createdByName}</div>
+                    className="w-full text-left px-3 py-3 hover:bg-amber-50 rounded space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="font-medium text-gray-800">{tpl.name}</div>
+                      <span className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">{tpl.items.length} item{tpl.items.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div className="space-y-0.5">
+                      {tpl.items.map((item, i) => (
+                        <div key={i} className="flex items-center justify-between text-xs text-gray-600">
+                          <span>{item.materialName}</span>
+                          <span className="text-gray-400">{item.qty} {item.uom}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <div className="text-xs text-gray-400">by {tpl.createdByName}</div>
                   </button>
                 ))}
               </div>

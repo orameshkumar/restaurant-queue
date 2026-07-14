@@ -138,7 +138,7 @@ export default function InvWastage() {
           refId: wastageRef.id,
           refType: 'invWastage',
           note: reason.trim(),
-          recordedBy: user?.uid || '',
+          recordedBy: user?.uid || '', recordedByName: profile?.name || user?.email || '',
         })
       }
 

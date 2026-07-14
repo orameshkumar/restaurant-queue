@@ -274,19 +274,14 @@ export default function InvTemplates() {
               </div>
 
               <div className="mt-3 space-y-1">
-                {tmpl.items.slice(0, 3).map((item, i) => (
-                  <div key={i} className="flex items-center justify-between text-sm">
+                {tmpl.items.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between text-sm py-0.5">
                     <span className="text-gray-700">{item.materialName}</span>
-                    <span className="text-gray-500 text-xs">
+                    <span className="text-gray-500 text-xs font-medium">
                       {item.qty} {item.uom}
                     </span>
                   </div>
                 ))}
-                {tmpl.items.length > 3 && (
-                  <p className="text-xs text-gray-400 pt-1">
-                    and {tmpl.items.length - 3} more...
-                  </p>
-                )}
               </div>
             </div>
           ))}
@@ -325,40 +320,14 @@ export default function InvTemplates() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Add Items
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={materialSearch}
-                    onChange={e => setMaterialSearch(e.target.value)}
-                    placeholder="Search material..."
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400"
-                  />
-                  {searchResults.length > 0 && (
-                    <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {searchResults.map(mat => (
-                        <button
-                          key={mat.id}
-                          onClick={() => addItemFromSearch(mat)}
-                          className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex items-center justify-between"
-                        >
-                          <span className="text-gray-800">{mat.name}</span>
-                          <span className="text-gray-400 text-xs">{mat.uom}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Items {formItems.length > 0 && <span className="text-amber-600">({formItems.length})</span>}
+                  </label>
                 </div>
-              </div>
 
-              {formItems.length > 0 && (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">
-                    Items ({formItems.length})
-                  </p>
-                  <div className="border rounded-lg divide-y">
+                {formItems.length > 0 && (
+                  <div className="border rounded-lg divide-y mb-3">
                     {formItems.map((item, index) => (
                       <div key={index} className="flex items-center gap-2 px-3 py-2">
                         <span className="flex-1 text-sm text-gray-800 truncate">
@@ -386,8 +355,33 @@ export default function InvTemplates() {
                       </div>
                     ))}
                   </div>
+                )}
+
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={materialSearch}
+                    onChange={e => setMaterialSearch(e.target.value)}
+                    placeholder="+ Search and add item..."
+                    className="w-full border border-dashed border-amber-400 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 bg-amber-50 placeholder-amber-500"
+                  />
+                  {searchResults.length > 0 && (
+                    <div className="absolute z-10 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {searchResults.map(mat => (
+                        <button
+                          key={mat.id}
+                          onClick={() => addItemFromSearch(mat)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-amber-50 flex items-center justify-between"
+                        >
+                          <span className="text-gray-800">{mat.name}</span>
+                          <span className="text-gray-400 text-xs">{mat.uom}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
+                <p className="text-xs text-gray-400 mt-1">Search and click to add multiple items</p>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 px-6 py-4 border-t">
