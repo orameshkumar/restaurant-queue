@@ -562,7 +562,7 @@ function ItemRow({ item, orderId, isManager }) {
 
 // ─── Order card ───────────────────────────────────────────────────────────────
 function QueueBoardModal({ order, onClose }) {
-  const queueUrl = `${window.location.origin}/takeaway/queue/${order.id}`;
+  const queueUrl = `${window.location.origin}${import.meta.env.BASE_URL}takeaway/queue/${order.id}`;
   function copyLink() {
     navigator.clipboard.writeText(queueUrl).then(
       () => toast.success('Link copied!'),
@@ -611,66 +611,37 @@ function QueueBoardModal({ order, onClose }) {
   );
 }
 
-function OrderCard({ order, allOrderItems, isManager, merchantVpa = '', merchantName = 'Restaurant' }) {
-  const items = useMemo(
-    () => allOrderItems.filter(i => i.orderId === order.id),
-    [allOrderItems, order.id]
-  );
+// ─── Order detail modal ──────────────────────────────────────────────────────
+function OrderDetailModal({ order, items, isManager, merchantVpa, merchantName, onClose }) {
   const activeItems = items.filter(i => i.status !== 'cancelled');
-  const placedCount = activeItems.filter(
-    i => i.status === 'placed' || i.status === 'in-kitchen'
-  ).length;
-  const prepCount = activeItems.filter(i => i.status === 'in-preparation').length;
-  const allReady =
-    activeItems.length > 0 && placedCount === 0 && prepCount === 0;
+  const placedCount = activeItems.filter(i => i.status === 'placed' || i.status === 'in-kitchen').length;
+  const prepCount   = activeItems.filter(i => i.status === 'in-preparation').length;
+  const allReady    = activeItems.length > 0 && placedCount === 0 && prepCount === 0;
+  const liveTotal   = activeItems.reduce((s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0);
 
-  const liveTotal = activeItems.reduce(
-    (s, i) => s + (i.price ?? 0) * (i.qty ?? 1),
-    0
-  );
-
-  const [handing, setHanding] = useState(false);
+  const [handing,   setHanding]   = useState(false);
   const [cancelling, setCancelling] = useState(false);
-  const [showQR, setShowQR] = useState(false);
   const [showUpiQR, setShowUpiQR] = useState(false);
+  const [showQueueQR, setShowQueueQR] = useState(false);
 
+  const isDelivery = order.type === 'delivery';
   const upiUrl = merchantVpa
-    ? `upi://pay?pa=${merchantVpa}&pn=${encodeURIComponent(merchantName)}&am=${liveTotal.toFixed(2)}&cu=INR&tn=${encodeURIComponent((order.type === 'takeaway' ? 'Takeaway' : 'Delivery') + (order.pickupToken ? ' ' + order.pickupToken : ''))}`
+    ? `upi://pay?pa=${merchantVpa}&pn=${encodeURIComponent(merchantName)}&am=${liveTotal.toFixed(2)}&cu=INR&tn=${encodeURIComponent((isDelivery ? 'Delivery' : 'Takeaway') + (order.pickupToken ? ' ' + order.pickupToken : ''))}`
     : '';
-
-  const statusLabel =
-    order.status === 'completed'
-      ? { text: 'Completed', cls: 'bg-gray-100 text-gray-600' }
-      : order.status === 'cancelled'
-      ? { text: 'Cancelled', cls: 'bg-red-100 text-red-600' }
-      : allReady
-      ? { text: 'Ready for Pickup', cls: 'bg-green-100 text-green-700' }
-      : prepCount > 0
-      ? { text: 'In Preparation', cls: 'bg-amber-100 text-amber-700' }
-      : { text: 'Queued', cls: 'bg-blue-100 text-blue-700' };
+  const queueUrl = `${window.location.origin}${import.meta.env.BASE_URL}takeaway/queue/${order.id}`;
 
   async function handleHandOver() {
-    if (
-      !window.confirm(
-        `Confirm handover to ${order.customerName}?\nThis marks the order as completed.`
-      )
-    )
-      return;
+    if (!window.confirm(`Confirm handover to ${order.customerName}?\nThis marks the order as completed.`)) return;
     setHanding(true);
     try {
       const batch = writeBatch(db);
       activeItems.forEach(i =>
-        batch.update(doc(db, 'orderItems', i.id), {
-          status: 'served',
-          servedAt: serverTimestamp(),
-        })
+        batch.update(doc(db, 'orderItems', i.id), { status: 'served', servedAt: serverTimestamp() })
       );
-      batch.update(doc(db, 'orders', order.id), {
-        status: 'completed',
-        completedAt: serverTimestamp(),
-      });
+      batch.update(doc(db, 'orders', order.id), { status: 'completed', completedAt: serverTimestamp() });
       await batch.commit();
       toast.success('Order handed over!');
+      onClose();
     } catch {
       toast.error('Handover failed.');
     } finally {
@@ -679,71 +650,41 @@ function OrderCard({ order, allOrderItems, isManager, merchantVpa = '', merchant
   }
 
   async function handleCancelOrder() {
-    // Only cancel items not yet served or already cancelled
-    const cancelableItems = items.filter(
-      i => i.status !== 'cancelled' && i.status !== 'served'
-    );
-    // Items already served/delivered — customer keeps these, no refund on them
-    const servedItems = items.filter(i => i.status === 'served');
-    const servedValue = servedItems.reduce(
-      (s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0
-    );
-    // Refund = what customer paid minus what was actually delivered
-    const paidTotal = order.total ?? liveTotal;
-    const refundAmount = Math.max(0, paidTotal - servedValue);
+    const cancelableItems = items.filter(i => i.status !== 'cancelled' && i.status !== 'served');
+    const servedItems     = items.filter(i => i.status === 'served');
+    const servedValue     = servedItems.reduce((s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0);
+    const paidTotal       = order.total ?? liveTotal;
+    const refundAmount    = Math.max(0, paidTotal - servedValue);
+    const hasPartial      = servedItems.length > 0;
 
-    const hasPartial = servedItems.length > 0;
     const confirmMsg = hasPartial
-      ? `Partial order was already delivered to ${order.customerName}.\n\n` +
-        `Delivered: ${fmt(servedValue)}\n` +
-        `Refund due: ${fmt(refundAmount)} (original ${fmt(paidTotal)} − delivered ${fmt(servedValue)})\n\n` +
-        `Cancel remaining items and record refund?`
+      ? `Partial order delivered to ${order.customerName}.\n\nDelivered: ${fmt(servedValue)}\nRefund due: ${fmt(refundAmount)}\n\nCancel remaining items?`
       : `Cancel entire order for ${order.customerName}?\nFull refund of ${fmt(refundAmount)} will be recorded.`;
 
     if (!window.confirm(confirmMsg)) return;
-
     setCancelling(true);
     try {
       const batch = writeBatch(db);
-
-      // Cancel only items not yet delivered
       cancelableItems.forEach(i =>
         batch.update(doc(db, 'orderItems', i.id), {
-          status: 'cancelled',
-          cancelledAt: serverTimestamp(),
-          cancelReason: 'manager_removed',
+          status: 'cancelled', cancelledAt: serverTimestamp(), cancelReason: 'manager_removed',
         })
       );
-
       batch.update(doc(db, 'orders', order.id), {
-        status: 'cancelled',
-        cancelledAt: serverTimestamp(),
-        refundAmount,
-        deliveredValue: servedValue,
+        status: 'cancelled', cancelledAt: serverTimestamp(), refundAmount, deliveredValue: servedValue,
       });
-
-      // Only create refund record if there's something to refund
       if (refundAmount > 0) {
         batch.set(doc(collection(db, 'refunds')), {
-          orderId: order.id,
-          orderType: order.type,
-          customerName: order.customerName,
-          customerPhone: order.customerPhone,
-          originalAmount: paidTotal,
-          deliveredAmount: servedValue,
-          amount: refundAmount,
+          orderId: order.id, orderType: order.type,
+          customerName: order.customerName, customerPhone: order.customerPhone,
+          originalAmount: paidTotal, deliveredAmount: servedValue, amount: refundAmount,
           reason: hasPartial ? 'Partial order cancelled — items not delivered' : 'Full order cancelled',
-          paymentMethod: order.paymentMethod ?? 'cash',
-          createdAt: serverTimestamp(),
+          paymentMethod: order.paymentMethod ?? 'cash', createdAt: serverTimestamp(),
         });
       }
-
       await batch.commit();
-      toast.success(
-        refundAmount > 0
-          ? `Order cancelled. Refund ${fmt(refundAmount)} recorded.`
-          : 'Order cancelled. No refund due (all items were delivered).'
-      );
+      toast.success(refundAmount > 0 ? `Order cancelled. Refund ${fmt(refundAmount)} recorded.` : 'Order cancelled.');
+      onClose();
     } catch (err) {
       console.error('cancelOrder error:', err);
       toast.error(`Cancellation failed: ${err.message ?? err}`);
@@ -752,157 +693,209 @@ function OrderCard({ order, allOrderItems, isManager, merchantVpa = '', merchant
     }
   }
 
-  const isDelivery = order.type === 'delivery';
-  const borderCls = isDelivery ? 'border-purple-400' : 'border-teal-400';
-  const headerBg = isDelivery ? 'bg-purple-50' : 'bg-teal-50';
-  const typeBadge = isDelivery
-    ? 'bg-purple-100 text-purple-700'
-    : 'bg-teal-100 text-teal-700';
+  const headerBg   = isDelivery ? 'bg-purple-50' : 'bg-teal-50';
+  const accentText = isDelivery ? 'text-purple-700' : 'text-teal-700';
+  const tokenBg    = isDelivery ? 'bg-purple-600' : 'bg-teal-600';
 
   return (
-    <div
-      className={`bg-white rounded-xl shadow-sm border-2 ${borderCls} overflow-hidden`}
-    >
-      {/* Card header */}
-      <div className={`${headerBg} px-4 py-3 flex items-start gap-3`}>
-        {/* Left: order info */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center flex-wrap gap-1.5 mb-1">
-            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${typeBadge}`}>
-              {isDelivery ? '🛵 DELIVERY' : '🥡 TAKEAWAY'}
-            </span>
-            {order.pickupToken && (
-              <span className="text-xs font-mono font-bold bg-teal-600 text-white px-2 py-0.5 rounded">
-                {order.pickupToken}
-              </span>
-            )}
-            {order.deliveryPartner && (
-              <span className="text-xs bg-purple-200 text-purple-800 font-medium px-2 py-0.5 rounded">
-                {order.deliveryPartner}
-              </span>
-            )}
-            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${statusLabel.cls}`}>
-              {statusLabel.text}
-            </span>
-          </div>
-          <p className="text-sm font-semibold text-gray-800">{order.customerName}</p>
-          <p className="text-xs text-gray-500">{order.customerPhone}</p>
-          {order.deliveryAddress && (
-            <p className="text-xs text-gray-400 mt-0.5 truncate max-w-xs">{order.deliveryAddress}</p>
-          )}
-          <div className="mt-2 flex items-center gap-3">
-            <div>
-              <p className="text-base font-bold text-gray-900">{fmt(liveTotal)}</p>
-              <p className="text-xs text-gray-400 capitalize">{order.paymentMethod} · <span className="text-green-600 font-medium">Paid</span></p>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh] overflow-hidden"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className={`${headerBg} px-5 py-4 flex items-start gap-3 border-b`}>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center flex-wrap gap-1.5 mb-1.5">
+              <span className={`text-xs font-bold ${accentText}`}>{isDelivery ? '🛵 DELIVERY' : '🥡 TAKEAWAY'}</span>
+              {order.pickupToken && (
+                <span className={`text-sm font-mono font-black ${tokenBg} text-white px-2.5 py-0.5 rounded`}>
+                  {order.pickupToken}
+                </span>
+              )}
+              {order.deliveryPartner && (
+                <span className="text-xs bg-purple-200 text-purple-800 font-medium px-2 py-0.5 rounded">
+                  {order.deliveryPartner}
+                </span>
+              )}
             </div>
-            {merchantVpa && order.status !== 'completed' && order.status !== 'cancelled' && (
+            <p className="text-base font-bold text-gray-900">{order.customerName}</p>
+            <p className="text-sm text-gray-500">{order.customerPhone}</p>
+            {order.deliveryAddress && (
+              <p className="text-xs text-gray-400 mt-0.5">{order.deliveryAddress}</p>
+            )}
+            <div className="mt-2 flex items-center gap-3 flex-wrap">
+              <div>
+                <span className="text-lg font-black text-gray-900">{fmt(liveTotal)}</span>
+                <span className="text-xs text-gray-400 ml-2 capitalize">{order.paymentMethod} · <span className="text-green-600 font-medium">Paid</span></span>
+              </div>
+              {/* QR buttons */}
               <button
-                onClick={() => setShowUpiQR(true)}
-                title="Show UPI payment QR"
-                className="text-xs font-semibold px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                onClick={() => setShowQueueQR(true)}
+                title="Customer queue status QR"
+                className="text-xs font-semibold px-2 py-1 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
               >
-                📲 UPI QR
+                📱 Queue QR
+              </button>
+              {merchantVpa && order.status !== 'completed' && order.status !== 'cancelled' && (
+                <button
+                  onClick={() => setShowUpiQR(true)}
+                  title="UPI payment QR"
+                  className="text-xs font-semibold px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+                >
+                  📲 UPI QR
+                </button>
+              )}
+            </div>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none px-1 flex-shrink-0">×</button>
+        </div>
+
+        {/* Items */}
+        <div className="flex-1 overflow-y-auto px-5 py-3 flex flex-col gap-0.5">
+          {items.map(item => (
+            <ItemRow key={item.id} item={item} orderId={order.id} isManager={isManager} />
+          ))}
+          {order.note && (
+            <p className="text-xs italic text-amber-600 bg-amber-50 rounded px-2 py-1 mt-2">⚠ {order.note}</p>
+          )}
+        </div>
+
+        {/* Actions */}
+        {order.status !== 'completed' && order.status !== 'cancelled' && (
+          <div className="px-5 py-4 border-t flex gap-2 flex-wrap bg-gray-50">
+            {allReady && (
+              <button
+                disabled={handing}
+                onClick={handleHandOver}
+                className="flex-1 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-40"
+              >
+                {handing ? 'Processing…' : isDelivery ? '✓ Handed to Delivery Person' : '✓ Handed to Customer'}
+              </button>
+            )}
+            {isManager && (
+              <button
+                disabled={cancelling}
+                onClick={handleCancelOrder}
+                className="px-4 py-2.5 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg transition-colors disabled:opacity-40"
+              >
+                {cancelling ? 'Cancelling…' : 'Cancel Order'}
               </button>
             )}
           </div>
-        </div>
-
-        {/* Right: inline token status QR */}
-        <div className="flex-shrink-0 flex flex-col items-center gap-1">
-          <div className="bg-white p-1.5 rounded-lg border border-gray-200 shadow-sm">
-            <QRCode
-              value={`${window.location.origin}/takeaway/queue/${order.id}`}
-              size={72}
-            />
-          </div>
-          <p className="text-xs text-gray-400 text-center leading-tight">
-            {order.pickupToken ?? 'Status'}
-          </p>
-        </div>
-      </div>
-
-      {/* Items */}
-      <div className="px-4 py-3 flex flex-col gap-0.5">
-        {items.map(item => (
-          <ItemRow
-            key={item.id}
-            item={item}
-            orderId={order.id}
-            isManager={isManager}
-          />
-        ))}
-        {order.note && (
-          <p className="text-xs italic text-amber-600 bg-amber-50 rounded px-2 py-1 mt-2">
-            ⚠ {order.note}
-          </p>
         )}
       </div>
 
-      {/* Actions */}
-      {order.status !== 'completed' && order.status !== 'cancelled' && (
-        <div className="px-4 pb-4 flex gap-2 flex-wrap">
-          {allReady && (
-            <button
-              disabled={handing}
-              onClick={handleHandOver}
-              className="flex-1 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-40"
-            >
-              {handing
-                ? 'Processing…'
-                : isDelivery
-                ? 'Handed to Delivery Person'
-                : 'Handed to Customer'}
-            </button>
-          )}
-          {isManager && (
-            <button
-              disabled={cancelling}
-              onClick={handleCancelOrder}
-              className="px-4 py-2 bg-red-100 hover:bg-red-200 text-red-700 text-xs font-semibold rounded-lg transition-colors disabled:opacity-40"
-            >
-              {cancelling ? 'Cancelling…' : 'Cancel Order'}
-            </button>
-          )}
+      {/* Queue QR sub-modal */}
+      {showQueueQR && (
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowQueueQR(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4 max-w-xs w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900">Customer Queue Status</h3>
+            {order.pickupToken && <p className={`text-3xl font-black ${accentText}`}>{order.pickupToken}</p>}
+            <div className="bg-white p-3 rounded-xl border-2 border-gray-200">
+              <QRCode value={queueUrl} size={180} />
+            </div>
+            <p className="text-xs text-gray-400 text-center">Customer scans to track their order live</p>
+            <button onClick={() => setShowQueueQR(false)} className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-sm font-medium rounded-lg">Close</button>
+          </div>
         </div>
       )}
 
-      {/* Queue board QR modal */}
-      {showQR && <QueueBoardModal order={order} onClose={() => setShowQR(false)} />}
-
-      {/* UPI payment QR modal */}
+      {/* UPI QR sub-modal */}
       {showUpiQR && upiUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b">
-              <h2 className="font-bold text-gray-900">Pay via UPI</h2>
-              <button onClick={() => setShowUpiQR(false)} className="text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none px-1">×</button>
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-black/70 p-4" onClick={() => setShowUpiQR(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center gap-4 max-w-xs w-full" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold text-gray-900">Pay via UPI</h3>
+            {order.pickupToken && <p className="text-sm font-bold text-teal-700">Token: {order.pickupToken}</p>}
+            <div className="bg-white p-3 rounded-xl border-2 border-gray-200">
+              <QRCode value={upiUrl} size={180} />
             </div>
-            <div className="p-6 flex flex-col items-center gap-4">
-              {order.pickupToken && (
-                <p className="text-sm font-bold text-teal-700">Token: {order.pickupToken}</p>
-              )}
-              <p className="text-sm text-gray-600 font-medium">{order.customerName}</p>
-              <div className="bg-white p-3 rounded-xl border-2 border-gray-200">
-                <QRCode value={upiUrl} size={180} />
-              </div>
-              <p className="text-2xl font-black text-indigo-700">{fmt(liveTotal)}</p>
-              <p className="text-xs text-indigo-600 font-medium">{merchantVpa}</p>
-              <p className="text-xs text-gray-400 text-center">
-                Customer scans this QR to pay via any UPI app
-              </p>
-            </div>
-            <div className="px-5 pb-5">
-              <button
-                onClick={() => setShowUpiQR(false)}
-                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-sm font-medium rounded-lg"
-              >
-                Close
-              </button>
-            </div>
+            <p className="text-2xl font-black text-indigo-700">{fmt(liveTotal)}</p>
+            <p className="text-xs text-indigo-600">{merchantVpa}</p>
+            <button onClick={() => setShowUpiQR(false)} className="w-full py-2 bg-gray-100 hover:bg-gray-200 text-sm font-medium rounded-lg">Close</button>
           </div>
         </div>
       )}
     </div>
+  );
+}
+
+// ─── Compact order row (for high-density list) ────────────────────────────────
+function OrderCard({ order, allOrderItems, isManager, merchantVpa = '', merchantName = 'Restaurant' }) {
+  const items = useMemo(
+    () => allOrderItems.filter(i => i.orderId === order.id),
+    [allOrderItems, order.id]
+  );
+  const activeItems = items.filter(i => i.status !== 'cancelled');
+  const placedCount = activeItems.filter(i => i.status === 'placed' || i.status === 'in-kitchen').length;
+  const prepCount   = activeItems.filter(i => i.status === 'in-preparation').length;
+  const allReady    = activeItems.length > 0 && placedCount === 0 && prepCount === 0;
+  const liveTotal   = activeItems.reduce((s, i) => s + (i.price ?? 0) * (i.qty ?? 1), 0);
+  const [showDetail, setShowDetail] = useState(false);
+
+  const isDelivery = order.type === 'delivery';
+
+  const statusInfo =
+    order.status === 'cancelled'  ? { text: 'Cancelled',       cls: 'bg-red-100 text-red-600',     dot: 'bg-red-400'   } :
+    order.status === 'completed'  ? { text: 'Completed',       cls: 'bg-gray-100 text-gray-500',   dot: 'bg-gray-400'  } :
+    allReady                      ? { text: 'Ready',           cls: 'bg-green-100 text-green-700', dot: 'bg-green-500' } :
+    prepCount > 0                 ? { text: 'Preparing',       cls: 'bg-amber-100 text-amber-700', dot: 'bg-amber-500' } :
+                                    { text: 'Queued',          cls: 'bg-blue-100 text-blue-700',   dot: 'bg-blue-400'  };
+
+  const borderCls  = isDelivery ? 'border-l-purple-400' : 'border-l-teal-400';
+  const tokenColor = isDelivery ? 'text-purple-700'     : 'text-teal-700';
+
+  const readyItems = activeItems.filter(i => i.status === 'ready' || i.status === 'served').length;
+  const totalActive = activeItems.length;
+
+  return (
+    <>
+      <div
+        className={`bg-white border-l-4 ${borderCls} rounded px-2.5 py-1 flex items-center gap-2 hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer`}
+        onClick={() => setShowDetail(true)}
+      >
+        {/* Status dot */}
+        <span className={`w-2 h-2 rounded-full flex-shrink-0 ${statusInfo.dot}${allReady && order.status !== 'completed' && order.status !== 'cancelled' ? ' animate-pulse' : ''}`} />
+
+        {/* Token / partner — fixed width */}
+        <span className={`w-14 flex-shrink-0 text-xs font-black font-mono ${tokenColor} truncate`}>
+          {order.pickupToken ?? order.deliveryPartner ?? '—'}
+        </span>
+
+        {/* Name */}
+        <span className="flex-1 min-w-0 text-xs font-semibold text-gray-800 truncate">
+          {order.customerName}
+        </span>
+
+        {/* Items progress */}
+        <span className="flex-shrink-0 text-xs text-gray-400 tabular-nums">
+          {readyItems}/{totalActive}
+        </span>
+
+        {/* Amount */}
+        <span className="flex-shrink-0 text-xs font-bold text-gray-700 tabular-nums w-16 text-right">
+          {fmt(liveTotal)}
+        </span>
+
+        {/* Status badge */}
+        <span className={`flex-shrink-0 text-xs font-medium px-1.5 py-px rounded-full ${statusInfo.cls}`}>
+          {statusInfo.text}
+        </span>
+
+        <span className="text-gray-300 flex-shrink-0 text-xs">›</span>
+      </div>
+
+      {showDetail && (
+        <OrderDetailModal
+          order={order}
+          items={items}
+          isManager={isManager}
+          merchantVpa={merchantVpa}
+          merchantName={merchantName}
+          onClose={() => setShowDetail(false)}
+        />
+      )}
+    </>
   );
 }
 
@@ -984,14 +977,11 @@ export default function Takeaway() {
   ).length;
 
   return (
-    <div className="flex flex-col gap-6 max-w-5xl mx-auto">
+    <div className="flex flex-col gap-3 max-w-5xl mx-auto">
       {/* Page header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Takeaway & Delivery</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            Walk-in takeaway and delivery orders
-          </p>
+          <h1 className="text-lg font-bold text-gray-900">Takeaway & Delivery</h1>
         </div>
         <button
           onClick={() => setShowCreate(true)}
@@ -1036,7 +1026,17 @@ export default function Takeaway() {
           <p className="text-sm mt-1">Tap "+ New Order" to get started</p>
         </div>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="flex flex-col gap-1">
+          {/* Column header */}
+          <div className="flex items-center gap-2 px-2.5 py-1 text-xs font-bold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+            <span className="w-2 flex-shrink-0" />
+            <span className="w-14 flex-shrink-0">Token</span>
+            <span className="flex-1">Customer</span>
+            <span className="flex-shrink-0 w-8 text-right">Qty</span>
+            <span className="flex-shrink-0 w-16 text-right">Amount</span>
+            <span className="flex-shrink-0 w-20 text-right">Status</span>
+            <span className="w-2 flex-shrink-0" />
+          </div>
           {activeOrders.map(order => (
             <OrderCard
               key={order.id}
@@ -1061,7 +1061,7 @@ export default function Takeaway() {
             Recent Completed / Cancelled ({completedOrders.length})
           </button>
           {showHistory && (
-            <div className="grid gap-3 lg:grid-cols-2 opacity-60">
+            <div className="flex flex-col gap-1 opacity-60">
               {completedOrders.map(order => (
                 <OrderCard
                   key={order.id}

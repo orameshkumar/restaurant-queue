@@ -6,17 +6,21 @@ import { auth, db } from '../firebase/config'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser]       = useState(undefined) // undefined = loading
-  const [profile, setProfile] = useState(null)
+  const [user, setUser]               = useState(undefined) // undefined = loading
+  const [profile, setProfile]         = useState(null)
+  const [profileLoading, setProfileLoading] = useState(true)
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (u) => {
       setUser(u)
       if (u) {
+        setProfileLoading(true)
         const snap = await getDoc(doc(db, 'staff', u.uid))
         setProfile(snap.exists() ? { ...snap.data(), id: snap.id } : null)
+        setProfileLoading(false)
       } else {
         setProfile(null)
+        setProfileLoading(false)
       }
     })
   }, [])
@@ -25,7 +29,7 @@ export function AuthProvider({ children }) {
   const logout = () => signOut(auth)
 
   return (
-    <AuthContext.Provider value={{ user, profile, login, logout }}>
+    <AuthContext.Provider value={{ user, profile, profileLoading, login, logout }}>
       {user === undefined ? (
         <div className="min-h-screen flex items-center justify-center">
           <div className="animate-spin h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full" />

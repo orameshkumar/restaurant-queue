@@ -8,8 +8,8 @@ service cloud.firestore {
     }
 
     match /orders/{id} {
-      allow create: if true;
-      allow read, update, delete: if isSignedIn();
+      allow read, create: if true;
+      allow update, delete: if isSignedIn();
     }
 
     match /bookings/{id} {
