@@ -49,5 +49,34 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
 
+    match /invMaterials/{id} {
+      allow read: if isSignedIn();
+      allow write: if isSignedIn();
+    }
+    match /invVendors/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /invRequests/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /invReturns/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /invPOs/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /invReceipts/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /invWastage/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /invTemplates/{id} {
+      allow read, write: if isSignedIn();
+    }
+    match /invLedger/{id} {
+      allow read, write: if isSignedIn();
+    }
+
   }
 }

@@ -10,6 +10,7 @@ const NAV = [
   { to: '/kds',       label: 'Kitchen',    icon: '👨‍🍳', roles: ['admin','manager','chef','kitchen_manager'] },
   { to: '/cashier',   label: 'Billing',    icon: '💳', roles: ['admin','manager','cashier','server'] },
   { to: '/takeaway',  label: 'Takeaway',   icon: '🥡', roles: ['admin','manager','server','cashier'] },
+  { to: '/inventory', label: 'Inventory', icon: '📦', roles: ['admin','manager','kitchen_manager','chef'] },
   { to: '/menu',      label: 'Menu',       icon: '📋', roles: ['admin','manager','kitchen_manager'] },
   { to: '/tables',    label: 'Tables',     icon: '🗂️',  roles: ['admin','manager'] },
   { to: '/staff',     label: 'Staff',      icon: '👥', roles: ['admin','manager'] },

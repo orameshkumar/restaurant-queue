@@ -17,6 +17,7 @@ import Board    from './pages/board/Board'
 import GuestOrder from './pages/guest/GuestOrder'
 import Orders  from './pages/orders/Orders'
 import Takeaway from './pages/takeaway/Takeaway'
+import Inventory from './pages/inventory/Inventory'
 import TakeawayQueue from './pages/takeaway/TakeawayQueue'
 import QueueBoard  from './pages/queue/QueueBoard'
 import QueueJoin   from './pages/queue/QueueJoin'
@@ -46,6 +47,7 @@ export default function App() {
       <Route path="/orders"   element={<Protected><Orders /></Protected>} />
       <Route path="/takeaway" element={<Protected roles={[...MANAGER_ROLES,'server','cashier']}><Takeaway /></Protected>} />
       <Route path="/takeaway/queue/:orderId" element={<TakeawayQueue />} />
+      <Route path="/inventory" element={<Protected roles={['admin','manager','kitchen_manager','chef']}><Inventory /></Protected>} />
       <Route path="/host"     element={<Protected roles={[...MANAGER_ROLES,'host']}><Host /></Protected>} />
       <Route path="/server"   element={<Protected roles={[...MANAGER_ROLES,'server']}><Server /></Protected>} />
       <Route path="/kds"      element={<Protected roles={[...MANAGER_ROLES,'chef','kitchen_manager']}><KDS /></Protected>} />
