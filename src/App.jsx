@@ -22,14 +22,11 @@ import QueueBoard  from './pages/queue/QueueBoard'
 import QueueJoin   from './pages/queue/QueueJoin'
 import QueueStatus from './pages/queue/QueueStatus'
 
+// AuthProvider already blocks rendering until user + profile are resolved,
+// so Protected never sees a loading state.
 function Protected({ children, roles }) {
-  const { user, profile, profileLoading } = useAuth()
+  const { user, profile } = useAuth()
   if (!user) return <Navigate to="/login" replace />
-  if (profileLoading) return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin h-8 w-8 border-4 border-amber-500 border-t-transparent rounded-full" />
-    </div>
-  )
   if (roles && !roles.includes(profile?.role)) return <Navigate to="/" replace />
   return <Layout>{children}</Layout>
 }
