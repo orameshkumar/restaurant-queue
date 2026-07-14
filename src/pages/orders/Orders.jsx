@@ -136,13 +136,18 @@ export default function Orders() {
       const firedAt = row.items.reduce((earliest, i) =>
         !earliest ? i.firedAt : (i.firedAt?.seconds ?? 0) < (earliest?.seconds ?? 0) ? i.firedAt : earliest
       , null)
+      // Compute total from live orderItems (excludes cancelled), not the stale orders.total
+      const liveTotal = row.items
+        .filter(i => i.status !== 'cancelled')
+        .reduce((s, i) => s + ((i.price ?? i.unitPrice ?? 0) * (i.qty ?? 1)), 0)
+
       return {
         orderId:   row.orderId,
         tableId:   row.tableId ?? meta.tableId,
         source:    meta.source ?? row.items[0]?.source ?? 'staff',
         guestName: meta.guestName ?? row.items[0]?.guestName ?? null,
         note:      meta.note ?? null,
-        total:     meta.total ?? null,
+        total:     liveTotal,
         createdAt: meta.createdAt ?? firedAt,
         items:     row.items,
         status:    effStatus,
@@ -276,6 +281,9 @@ export default function Orders() {
                           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${im.dot}`} title={im.label} />
                           <span className="text-sm font-medium text-gray-800">{item.name}</span>
                           <span className="text-sm text-gray-400">×{item.qty ?? 1}</span>
+                          <span className="text-xs text-gray-500">
+                            ₹{((item.price ?? item.unitPrice ?? 0) * (item.qty ?? 1)).toLocaleString('en-IN')}
+                          </span>
                           <span className="text-xs text-gray-400 italic">{im.label}</span>
                           {isManager && (
                             <button
@@ -293,11 +301,9 @@ export default function Orders() {
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
                     {order.guestName && <span>👤 {order.guestName}</span>}
                     {order.note && <span className="italic">"{order.note}"</span>}
-                    {order.total != null && (
-                      <span className="ml-auto font-medium text-gray-600">
-                        ₹{order.total.toLocaleString('en-IN')}
-                      </span>
-                    )}
+                    <span className="ml-auto font-semibold text-gray-700">
+                      Total: ₹{order.total.toLocaleString('en-IN')}
+                    </span>
                   </div>
                 </div>
               </div>
