@@ -12,49 +12,49 @@ Built with **React 18 + Vite + Tailwind CSS + Firebase** (Firestore + Authentica
 - **Walk-in queue** with token generation and estimated wait time
 - **Floor plan view** — table status at a glance (available, occupied, reserved)
 - **Reservations** with guest name and party size
-- **Public waiting-room board** at `/board` — no login, TV-friendly
+- ⭐ **Public waiting-room board** at `/board` — no login, TV-friendly, live updates
 - **Guest self-service queue join** at `/queue/join` with live status tracker
 
 ### ⭐ Digital Ordering
-- **Table-side QR ordering** — guests scan a QR code and place orders without a server
+- ⭐ **Table-side QR ordering** — guests scan a QR code and place orders without a server
 - **Server order taking** — servers manage multiple tables with a unified order modal
-- **Real-time order sync** — all screens update instantly via Firestore listeners
+- ⭐ **Real-time order sync** — all screens update instantly via Firestore listeners; no polling, no refresh
 - **Order editing** — add, remove, or modify items before KDS dispatch
 
 ### ⭐ Kitchen Display System (KDS)
 - **Kanban board** — New → In Preparation → Ready for Pickup
-- **Atomic chef claiming** — prevents two chefs from picking up the same ticket
+- ⭐ **Atomic chef claiming** — prevents two chefs from picking up the same ticket simultaneously
 - **Priority override** by kitchen manager
-- **86 list** — toggle any menu item unavailable in real time; reflected instantly on all screens
+- ⭐ **86 list** — toggle any menu item unavailable in real time; reflected instantly on all screens
 
 ### ⭐ Billing & Payments
-- **Split bill** — N-way equal split or custom per-guest amounts
-- **Partial payments** — multiple payment methods per bill
+- ⭐ **Split bill** — N-way equal split or custom per-guest amounts
+- ⭐ **Partial payments** — multiple payment methods per bill
 - **Discounts & voids** — item-level and bill-level adjustments
 - **Refunds** — tracked against bills, deducted from dashboard revenue
 
 ### ⭐ Takeaway & Delivery
 - **Takeaway order management** — separate queue from dine-in
-- **Public order status page** at `/takeaway/queue/:orderId` — no login required
+- ⭐ **Public order status page** at `/takeaway/queue/:orderId` — no login required, shareable link
 - **Status flow** — Pending → Preparing → Ready → Handed Over / Delivered
-- **Revenue included** in dashboard totals alongside dine-in
+- ⭐ **Revenue included** in dashboard totals alongside dine-in, with refund deductions
 
 ### ⭐ Inventory Management
 - **Raw materials catalog** with current stock, reorder level, and reorder quantity
-- **Load default materials** — 75 standard restaurant ingredients in one click
+- ⭐ **Load default materials** — 75 standard restaurant ingredients seeded in one click
 - **Kitchen requests** — kitchen staff raise multi-item material requests against templates
 - **Issue & return workflow** — manager issues stock to kitchen; kitchen returns unused items
 - **Wastage recording** — log spoilage with reason; reflected in ledger
-- **Purchase Orders (PO)** — generate from low-stock alerts or kitchen usage; send to vendor
+- ⭐ **Purchase Orders (PO)** — generate from low-stock alerts or kitchen usage report; send to vendor
 - **Stock receipts** — receive goods against a PO or ad-hoc; stock updated atomically
 - **Vendor management** — supplier contact details and WhatsApp integration for POs
-- **Reusable templates** — kitchen templates and PO templates with multiple items
-- **Full stock ledger** — every transaction logged with material, qty, type, and recorded-by name
-- **Kitchen usage report** — per-material view of issued / returned / wasted / effectively used for any date range
-- **Raise PO from ledger** — select items from usage report and create a PO directly, choosing qty mode (effectively used or used + wastage)
+- ⭐ **Reusable templates** — kitchen and PO templates with multiple items and quantities
+- ⭐ **Full stock ledger** — every transaction logged with material, qty, type, and recorded-by name
+- ⭐ **Kitchen usage report** — per-material view of issued / returned / wasted / effectively used for any date range; CSV export
+- ⭐ **Raise PO from usage report** — select items, choose qty mode (effectively used or used + wastage), pick vendor, create PO in one flow
 
 ### Reporting & Dashboard
-- **Dashboard** — today's revenue (dine-in + takeaway − refunds), active tables, active takeaway orders
+- ⭐ **Dashboard** — today's revenue (dine-in + takeaway − refunds), active tables, active takeaway count
 - **Reports** — revenue by date range, top-selling items, sales by category
 - **Inventory ledger** — filterable by date, material, and transaction type; CSV export
 
