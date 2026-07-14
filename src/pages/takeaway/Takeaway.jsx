@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useCollection } from '../../hooks/useCollection';
+import { useDocument } from '../../hooks/useDocument';
 import { isManagerRole } from '../../utils/roles';
 
 const DELIVERY_PARTNERS = ['Swiggy', 'Zomato', 'Own Delivery', 'Other'];
@@ -24,6 +25,9 @@ function CreateOrderModal({ type, todayTakeawayCount, onClose, onCreated }) {
   const { profile } = useAuth();
   const { docs: allMenuItems = [] } = useCollection('menuItems', 'name', 'asc');
   const menuItems = useMemo(() => allMenuItems.filter(i => i.available !== false), [allMenuItems]);
+  const { document: settings } = useDocument('restaurantSettings', 'main');
+  const merchantVpa  = settings?.upiId ?? '';
+  const merchantName = settings?.restaurantName ?? 'Restaurant';
 
   const [step, setStep] = useState('details');
   const [customerName, setCustomerName] = useState('');
@@ -382,6 +386,23 @@ function CreateOrderModal({ type, todayTakeawayCount, onClose, onCreated }) {
                 </div>
               </div>
 
+              {/* UPI QR code */}
+              {paymentMethod === 'upi' && merchantVpa && (
+                <div className="flex flex-col items-center gap-2 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                  <QRCode
+                    value={`upi://pay?pa=${merchantVpa}&pn=${encodeURIComponent(merchantName)}&am=${subtotal.toFixed(2)}&cu=INR&tn=${encodeURIComponent((type === 'takeaway' ? 'Takeaway' : 'Delivery') + ' Order')}`}
+                    size={160}
+                  />
+                  <p className="text-sm font-bold text-indigo-700">Scan to pay {fmt(subtotal)}</p>
+                  <p className="text-xs text-indigo-600">{merchantVpa}</p>
+                </div>
+              )}
+              {paymentMethod === 'upi' && !merchantVpa && (
+                <p className="text-xs text-amber-600 bg-amber-50 rounded-lg p-3">
+                  UPI ID not configured. Go to Settings → add your UPI ID to show a payment QR.
+                </p>
+              )}
+
               {/* Context info */}
               {type === 'takeaway' && (
                 <div className="bg-teal-50 border border-teal-200 rounded-xl p-4">
@@ -590,7 +611,7 @@ function QueueBoardModal({ order, onClose }) {
   );
 }
 
-function OrderCard({ order, allOrderItems, isManager }) {
+function OrderCard({ order, allOrderItems, isManager, merchantVpa = '', merchantName = 'Restaurant' }) {
   const items = useMemo(
     () => allOrderItems.filter(i => i.orderId === order.id),
     [allOrderItems, order.id]
@@ -611,6 +632,11 @@ function OrderCard({ order, allOrderItems, isManager }) {
   const [handing, setHanding] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showQR, setShowQR] = useState(false);
+  const [showUpiQR, setShowUpiQR] = useState(false);
+
+  const upiUrl = merchantVpa
+    ? `upi://pay?pa=${merchantVpa}&pn=${encodeURIComponent(merchantName)}&am=${liveTotal.toFixed(2)}&cu=INR&tn=${encodeURIComponent((order.type === 'takeaway' ? 'Takeaway' : 'Delivery') + (order.pickupToken ? ' ' + order.pickupToken : ''))}`
+    : '';
 
   const statusLabel =
     order.status === 'completed'
@@ -783,6 +809,15 @@ function OrderCard({ order, allOrderItems, isManager }) {
           >
             📋 Queue Board
           </button>
+          {merchantVpa && order.status !== 'completed' && order.status !== 'cancelled' && (
+            <button
+              onClick={() => setShowUpiQR(true)}
+              title="Show UPI payment QR"
+              className="mt-1 text-xs font-semibold px-2 py-1 rounded-lg bg-indigo-100 text-indigo-700 hover:bg-indigo-200 transition-colors"
+            >
+              📲 UPI QR
+            </button>
+          )}
         </div>
       </div>
 
@@ -833,6 +868,40 @@ function OrderCard({ order, allOrderItems, isManager }) {
 
       {/* Queue board QR modal */}
       {showQR && <QueueBoardModal order={order} onClose={() => setShowQR(false)} />}
+
+      {/* UPI payment QR modal */}
+      {showUpiQR && upiUrl && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xs flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b">
+              <h2 className="font-bold text-gray-900">Pay via UPI</h2>
+              <button onClick={() => setShowUpiQR(false)} className="text-gray-400 hover:text-gray-700 text-2xl font-bold leading-none px-1">×</button>
+            </div>
+            <div className="p-6 flex flex-col items-center gap-4">
+              {order.pickupToken && (
+                <p className="text-sm font-bold text-teal-700">Token: {order.pickupToken}</p>
+              )}
+              <p className="text-sm text-gray-600 font-medium">{order.customerName}</p>
+              <div className="bg-white p-3 rounded-xl border-2 border-gray-200">
+                <QRCode value={upiUrl} size={180} />
+              </div>
+              <p className="text-2xl font-black text-indigo-700">{fmt(liveTotal)}</p>
+              <p className="text-xs text-indigo-600 font-medium">{merchantVpa}</p>
+              <p className="text-xs text-gray-400 text-center">
+                Customer scans this QR to pay via any UPI app
+              </p>
+            </div>
+            <div className="px-5 pb-5">
+              <button
+                onClick={() => setShowUpiQR(false)}
+                className="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-sm font-medium rounded-lg"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -841,6 +910,9 @@ function OrderCard({ order, allOrderItems, isManager }) {
 export default function Takeaway() {
   const { profile } = useAuth();
   const isManager = isManagerRole(profile);
+  const { document: settings } = useDocument('restaurantSettings', 'main');
+  const merchantVpa  = settings?.upiId ?? '';
+  const merchantName = settings?.restaurantName ?? 'Restaurant';
   const [activeTab, setActiveTab] = useState('takeaway');
   const [showCreate, setShowCreate] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
@@ -971,6 +1043,8 @@ export default function Takeaway() {
               order={order}
               allOrderItems={orderItems}
               isManager={isManager}
+              merchantVpa={merchantVpa}
+              merchantName={merchantName}
             />
           ))}
         </div>
@@ -994,6 +1068,8 @@ export default function Takeaway() {
                   order={order}
                   allOrderItems={orderItems}
                   isManager={isManager}
+                  merchantVpa={merchantVpa}
+                  merchantName={merchantName}
                 />
               ))}
             </div>
