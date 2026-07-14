@@ -142,15 +142,19 @@ export default function Orders() {
         .reduce((s, i) => s + ((i.price ?? i.unitPrice ?? 0) * (i.qty ?? 1)), 0)
 
       return {
-        orderId:   row.orderId,
-        tableId:   row.tableId ?? meta.tableId,
-        source:    meta.source ?? row.items[0]?.source ?? 'staff',
-        guestName: meta.guestName ?? row.items[0]?.guestName ?? null,
-        note:      meta.note ?? null,
-        total:     liveTotal,
-        createdAt: meta.createdAt ?? firedAt,
-        items:     row.items,
-        status:    effStatus,
+        orderId:         row.orderId,
+        tableId:         row.tableId ?? meta.tableId,
+        source:          meta.source ?? row.items[0]?.source ?? 'staff',
+        type:            meta.type ?? null,
+        guestName:       meta.guestName ?? row.items[0]?.guestName ?? null,
+        customerName:    meta.customerName ?? row.items[0]?.customerName ?? null,
+        pickupToken:     meta.pickupToken ?? row.items[0]?.pickupToken ?? null,
+        deliveryPartner: meta.deliveryPartner ?? row.items[0]?.deliveryPartner ?? null,
+        note:            meta.note ?? null,
+        total:           liveTotal,
+        createdAt:       meta.createdAt ?? firedAt,
+        items:           row.items,
+        status:          effStatus,
       }
     }).sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
   }, [activeItems, ordersMap])
@@ -187,11 +191,13 @@ export default function Orders() {
   const [cleaningId, setCleaningId] = useState(null)
 
   // Orphan orders: orders not billed/cancelled whose bookingId no longer matches
-  // the table's currentBookingId (the table was freed/re-seated without cleanup)
+  // the table's currentBookingId (the table was freed/re-seated without cleanup).
+  // Takeaway/delivery orders have no table — they are never orphans.
   const orphanOrders = useMemo(() => {
     if (!isManager) return []
     return Object.values(ordersMap).filter(order => {
       if (['billed', 'cancelled'].includes(order.status)) return false
+      if (order.type === 'takeaway' || order.type === 'delivery') return false
       const table = tableMap[order.tableId]
       if (!table) return true  // table deleted — definitely orphan
       // If the table has a different (or no) currentBookingId this order is stale
@@ -357,8 +363,14 @@ export default function Orders() {
         </div>
 
         {/* Source pills */}
-        <div className="flex gap-1.5">
-          {[['all', 'All Sources'], ['staff', 'Staff'], ['guest', 'Guest QR']].map(([val, lbl]) => (
+        <div className="flex gap-1.5 flex-wrap">
+          {[
+            ['all',      'All Sources'],
+            ['staff',    'Staff'],
+            ['guest',    'Guest QR'],
+            ['takeaway', '🥡 Takeaway'],
+            ['delivery', '🛵 Delivery'],
+          ].map(([val, lbl]) => (
             <button
               key={val}
               onClick={() => setSourceFilter(val)}
@@ -396,18 +408,37 @@ export default function Orders() {
       ) : (
         <div className="space-y-3">
           {filtered.map(order => {
-            const table    = tableMap[order.tableId]
-            const meta     = STATUS_META[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-600' }
-            const isGuest  = order.source === 'guest'
+            const table       = tableMap[order.tableId]
+            const meta        = STATUS_META[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-600' }
+            const isTakeaway  = order.source === 'takeaway'
+            const isDelivery  = order.source === 'delivery'
+            const isGuest     = order.source === 'guest'
+            const borderCls   = isTakeaway ? 'border-teal-300' : isDelivery ? 'border-purple-300' : 'border-gray-100'
             return (
-              <div key={order.orderId} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4">
-                {/* Table badge */}
-                <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-indigo-50 border border-indigo-100">
-                  <span className="text-xs text-indigo-400 font-medium leading-none">Table</span>
-                  <span className="text-xl font-bold text-indigo-700 leading-tight">
-                    {table?.tableNumber ?? '?'}
-                  </span>
-                </div>
+              <div key={order.orderId} className={`bg-white rounded-xl shadow-sm border-2 ${borderCls} p-4 flex gap-4`}>
+                {/* Left badge — table number for dine-in, type icon for takeaway/delivery */}
+                {isTakeaway ? (
+                  <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-teal-50 border border-teal-200">
+                    <span className="text-2xl leading-none">🥡</span>
+                    {order.pickupToken && (
+                      <span className="text-xs font-bold text-teal-700 leading-tight mt-0.5">{order.pickupToken}</span>
+                    )}
+                  </div>
+                ) : isDelivery ? (
+                  <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-purple-50 border border-purple-200">
+                    <span className="text-2xl leading-none">🛵</span>
+                    {order.deliveryPartner && (
+                      <span className="text-xs font-bold text-purple-700 leading-tight mt-0.5 truncate max-w-[52px] text-center">{order.deliveryPartner}</span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-indigo-50 border border-indigo-100">
+                    <span className="text-xs text-indigo-400 font-medium leading-none">Table</span>
+                    <span className="text-xl font-bold text-indigo-700 leading-tight">
+                      {table?.tableNumber ?? '?'}
+                    </span>
+                  </div>
+                )}
 
                 {/* Main content */}
                 <div className="flex-1 min-w-0">
@@ -415,6 +446,16 @@ export default function Orders() {
                     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${meta.color}`}>
                       {meta.label}
                     </span>
+                    {isTakeaway && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-teal-100 text-teal-700">
+                        🥡 Takeaway
+                      </span>
+                    )}
+                    {isDelivery && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                        🛵 Delivery
+                      </span>
+                    )}
                     {isGuest && (
                       <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
                         📱 Guest QR
@@ -450,7 +491,9 @@ export default function Orders() {
 
                   {/* Footer */}
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
-                    {order.guestName && <span>👤 {order.guestName}</span>}
+                    {(isTakeaway || isDelivery) && order.customerName && <span>👤 {order.customerName}</span>}
+                    {isGuest && order.guestName && <span>👤 {order.guestName}</span>}
+                    {!isTakeaway && !isDelivery && !isGuest && order.guestName && <span>👤 {order.guestName}</span>}
                     {order.note && <span className="italic">"{order.note}"</span>}
                     <span className="ml-auto font-semibold text-gray-700">
                       Total: ₹{order.total.toLocaleString('en-IN')}
