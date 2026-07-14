@@ -15,6 +15,7 @@ export default function InvReturns() {
   const [issuedRequests, setIssuedRequests] = useState([])
   const [showForm, setShowForm] = useState(false)
   const [showCopyModal, setShowCopyModal] = useState(false)
+  const [copyPickerPage, setCopyPickerPage] = useState(0)
   const [expandedRow, setExpandedRow] = useState(null)
   const [submitting, setSubmitting] = useState(false)
   const [materialSearch, setMaterialSearch] = useState('')
@@ -195,7 +196,7 @@ export default function InvReturns() {
             <h3 className="font-semibold text-gray-700">New Return</h3>
             <button
               type="button"
-              onClick={() => setShowCopyModal(true)}
+              onClick={() => { setCopyPickerPage(0); setShowCopyModal(true) }}
               className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50"
             >
               Copy from Request
@@ -329,7 +330,7 @@ export default function InvReturns() {
               <p className="text-sm text-gray-500">No issued requests found.</p>
             ) : (
               <div className="space-y-2 max-h-72 overflow-y-auto">
-                {issuedRequests.map(req => (
+                {issuedRequests.slice(copyPickerPage * 10, copyPickerPage * 10 + 10).map(req => (
                   <button
                     key={req.id}
                     onClick={() => handleCopyFromRequest(req)}
@@ -343,6 +344,15 @@ export default function InvReturns() {
                     <span className="inline-block text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 capitalize">{req.status}</span>
                   </button>
                 ))}
+              </div>
+            )}
+            {issuedRequests.length > 10 && (
+              <div className="flex items-center justify-between pt-2">
+                <button disabled={copyPickerPage === 0} onClick={() => setCopyPickerPage(p => p - 1)}
+                  className="border border-gray-300 text-gray-600 px-3 py-1 rounded-lg text-xs disabled:opacity-40 hover:bg-gray-50">← Prev</button>
+                <span className="text-xs text-gray-500">{copyPickerPage + 1} / {Math.ceil(issuedRequests.length / 10)}</span>
+                <button disabled={(copyPickerPage + 1) * 10 >= issuedRequests.length} onClick={() => setCopyPickerPage(p => p + 1)}
+                  className="border border-gray-300 text-gray-600 px-3 py-1 rounded-lg text-xs disabled:opacity-40 hover:bg-gray-50">Next →</button>
               </div>
             )}
           </div>

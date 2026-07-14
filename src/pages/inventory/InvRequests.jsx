@@ -35,6 +35,7 @@ export default function InvRequests() {
   const [submitting, setSubmitting] = useState(false)
 
   const [showTemplateModal, setShowTemplateModal] = useState(false)
+  const [templatePickerPage, setTemplatePickerPage] = useState(0)
   const [showSaveTemplateModal, setShowSaveTemplateModal] = useState(false)
   const [templateName, setTemplateName] = useState('')
   const [savingTemplate, setSavingTemplate] = useState(false)
@@ -279,7 +280,7 @@ export default function InvRequests() {
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-800">New Material Request</h2>
-            <button onClick={() => setShowTemplateModal(true)}
+            <button onClick={() => { setTemplatePickerPage(0); setShowTemplateModal(true) }}
               className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
               Use Template
             </button>
@@ -492,26 +493,37 @@ export default function InvRequests() {
             {templates.length === 0 ? (
               <p className="text-gray-500 text-sm py-4 text-center">No kitchen templates saved yet</p>
             ) : (
-              <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
-                {templates.map(tpl => (
-                  <button key={tpl.id} onClick={() => loadTemplate(tpl)}
-                    className="w-full text-left px-3 py-3 hover:bg-amber-50 rounded space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium text-gray-800">{tpl.name}</div>
-                      <span className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">{tpl.items.length} item{tpl.items.length !== 1 ? 's' : ''}</span>
-                    </div>
-                    <div className="space-y-0.5">
-                      {tpl.items.map((item, i) => (
-                        <div key={i} className="flex items-center justify-between text-xs text-gray-600">
-                          <span>{item.materialName}</span>
-                          <span className="text-gray-400">{item.qty} {item.uom}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <div className="text-xs text-gray-400">by {tpl.createdByName}</div>
-                  </button>
-                ))}
-              </div>
+              <>
+                <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                  {templates.slice(templatePickerPage * 10, templatePickerPage * 10 + 10).map(tpl => (
+                    <button key={tpl.id} onClick={() => loadTemplate(tpl)}
+                      className="w-full text-left px-3 py-3 hover:bg-amber-50 rounded space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="font-medium text-gray-800">{tpl.name}</div>
+                        <span className="text-xs text-amber-600 font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">{tpl.items.length} item{tpl.items.length !== 1 ? 's' : ''}</span>
+                      </div>
+                      <div className="space-y-0.5">
+                        {tpl.items.map((item, i) => (
+                          <div key={i} className="flex items-center justify-between text-xs text-gray-600">
+                            <span>{item.materialName}</span>
+                            <span className="text-gray-400">{item.qty} {item.uom}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="text-xs text-gray-400">by {tpl.createdByName}</div>
+                    </button>
+                  ))}
+                </div>
+                {templates.length > 10 && (
+                  <div className="flex items-center justify-between pt-2">
+                    <button disabled={templatePickerPage === 0} onClick={() => setTemplatePickerPage(p => p - 1)}
+                      className="border border-gray-300 text-gray-600 px-3 py-1 rounded-lg text-xs disabled:opacity-40 hover:bg-gray-50">← Prev</button>
+                    <span className="text-xs text-gray-500">{templatePickerPage + 1} / {Math.ceil(templates.length / 10)}</span>
+                    <button disabled={(templatePickerPage + 1) * 10 >= templates.length} onClick={() => setTemplatePickerPage(p => p + 1)}
+                      className="border border-gray-300 text-gray-600 px-3 py-1 rounded-lg text-xs disabled:opacity-40 hover:bg-gray-50">Next →</button>
+                  </div>
+                )}
+              </>
             )}
             <div className="flex justify-end">
               <button onClick={() => setShowTemplateModal(false)}

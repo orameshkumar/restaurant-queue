@@ -33,6 +33,7 @@ export default function InvWastage() {
 
   const [issuedRequests, setIssuedRequests] = useState([])
   const [showRequestPicker, setShowRequestPicker] = useState(false)
+  const [reqPickerPage, setReqPickerPage] = useState(0)
 
   const [filterFrom, setFilterFrom] = useState(format(startOfMonth(new Date()), 'yyyy-MM-dd'))
   const [filterTo, setFilterTo] = useState(format(endOfMonth(new Date()), 'yyyy-MM-dd'))
@@ -279,7 +280,7 @@ export default function InvWastage() {
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-gray-700">Items</label>
                 {issuedRequests.length > 0 && (
-                  <button type="button" onClick={() => setShowRequestPicker(true)}
+                  <button type="button" onClick={() => { setReqPickerPage(0); setShowRequestPicker(true) }}
                     className="border border-amber-400 text-amber-700 px-3 py-1 rounded-lg text-xs font-medium hover:bg-amber-50">
                     Load from Request
                   </button>
@@ -496,7 +497,7 @@ export default function InvWastage() {
               {issuedRequests.length === 0 ? (
                 <p className="px-5 py-8 text-center text-sm text-gray-400">No issued requests found</p>
               ) : (
-                issuedRequests.map(req => (
+                issuedRequests.slice(reqPickerPage * 10, reqPickerPage * 10 + 10).map(req => (
                   <button key={req.id} onClick={() => loadFromRequest(req)}
                     className="w-full text-left px-5 py-3 hover:bg-amber-50 space-y-1">
                     <div className="flex items-center justify-between">
@@ -514,7 +515,18 @@ export default function InvWastage() {
                 ))
               )}
             </div>
-            <div className="px-5 py-3 border-t flex justify-end">
+            <div className="px-5 py-3 border-t flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                {issuedRequests.length > 10 && (
+                  <>
+                    <button disabled={reqPickerPage === 0} onClick={() => setReqPickerPage(p => p - 1)}
+                      className="border border-gray-300 text-gray-600 px-3 py-1 rounded-lg text-xs disabled:opacity-40 hover:bg-gray-50">← Prev</button>
+                    <span className="text-xs text-gray-500">{reqPickerPage + 1} / {Math.ceil(issuedRequests.length / 10)}</span>
+                    <button disabled={(reqPickerPage + 1) * 10 >= issuedRequests.length} onClick={() => setReqPickerPage(p => p + 1)}
+                      className="border border-gray-300 text-gray-600 px-3 py-1 rounded-lg text-xs disabled:opacity-40 hover:bg-gray-50">Next →</button>
+                  </>
+                )}
+              </div>
               <button onClick={() => setShowRequestPicker(false)}
                 className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
                 Cancel
