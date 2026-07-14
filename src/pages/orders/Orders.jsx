@@ -1,16 +1,29 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { collection, query, where, onSnapshot } from 'firebase/firestore'
-import { useEffect } from 'react'
 import { db } from '../../firebase/config'
 import { useCollection } from '../../hooks/useCollection'
 import PageHeader from '../../components/PageHeader'
 
-const ACTIVE_STATUSES = ['new', 'preparing', 'ready']
+// Effective order status derived from its live orderItems
+function effectiveStatus(itemStatuses) {
+  if (itemStatuses.includes('ready') && !itemStatuses.includes('in-preparation')) return 'ready'
+  if (itemStatuses.some(s => s === 'ready' || s === 'in-preparation')) return 'preparing'
+  return 'queued'
+}
 
 const STATUS_META = {
-  new:       { label: 'New',       color: 'bg-blue-100 text-blue-700' },
-  preparing: { label: 'Preparing', color: 'bg-amber-100 text-amber-700' },
-  ready:     { label: 'Ready',     color: 'bg-green-100 text-green-700' },
+  queued:   { label: 'Queued',         color: 'bg-blue-100 text-blue-700' },
+  preparing:{ label: 'In Preparation', color: 'bg-amber-100 text-amber-700' },
+  ready:    { label: 'Ready to Serve', color: 'bg-green-100 text-green-700' },
+}
+
+const ITEM_STATUS_META = {
+  placed:         { label: 'Queued',      dot: 'bg-blue-400' },
+  'in-kitchen':   { label: 'Queued',      dot: 'bg-blue-400' },
+  'in-preparation':{ label: 'Preparing',  dot: 'bg-amber-400' },
+  ready:          { label: 'Ready',       dot: 'bg-green-500' },
+  served:         { label: 'Served',      dot: 'bg-gray-400' },
+  cancelled:      { label: 'Cancelled',   dot: 'bg-red-400' },
 }
 
 function timeAgo(ts) {
@@ -25,20 +38,33 @@ function timeAgo(ts) {
 export default function Orders() {
   const { docs: tables = [] } = useCollection('tables', 'tableNumber')
 
-  const [orders, setOrders] = useState([])
-  const [loading, setLoading] = useState(true)
+  // Live orderItems that are still active (not served/cancelled)
+  const [activeItems, setActiveItems] = useState([])
+  const [loadingItems, setLoadingItems] = useState(true)
 
-  // Single-field query by status 'in' list — no composite index needed
   useEffect(() => {
-    const q = query(collection(db, 'orders'), where('status', 'in', ACTIVE_STATUSES))
-    const unsub = onSnapshot(q, snap => {
-      const docs = snap.docs
-        .map(d => ({ ...d.data(), id: d.id }))
-        .sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
-      setOrders(docs)
-      setLoading(false)
+    const q = query(
+      collection(db, 'orderItems'),
+      where('status', 'in', ['placed', 'in-kitchen', 'in-preparation', 'ready'])
+    )
+    return onSnapshot(q, snap => {
+      setActiveItems(snap.docs.map(d => ({ ...d.data(), id: d.id })))
+      setLoadingItems(false)
     })
-    return unsub
+  }, [])
+
+  // Orders collection for metadata (guestName, note, total, source, createdAt)
+  const [ordersMap, setOrdersMap] = useState({})
+  useEffect(() => {
+    const q = query(
+      collection(db, 'orders'),
+      where('status', 'in', ['new', 'placed', 'preparing', 'draft'])
+    )
+    return onSnapshot(q, snap => {
+      const m = {}
+      snap.docs.forEach(d => { m[d.id] = { ...d.data(), id: d.id } })
+      setOrdersMap(m)
+    })
   }, [])
 
   const tableMap = useMemo(() => {
@@ -47,30 +73,63 @@ export default function Orders() {
     return m
   }, [tables])
 
+  // Group orderItems by orderId → derive one row per active order
+  const orderRows = useMemo(() => {
+    const byOrder = {}
+    activeItems.forEach(item => {
+      const oid = item.orderId
+      if (!oid) return
+      if (!byOrder[oid]) byOrder[oid] = { orderId: oid, items: [], tableId: item.tableId, bookingId: item.bookingId }
+      byOrder[oid].items.push(item)
+    })
+
+    return Object.values(byOrder).map(row => {
+      const meta = ordersMap[row.orderId] ?? {}
+      const statuses = row.items.map(i => i.status)
+      const effStatus = effectiveStatus(statuses)
+      const firedAt = row.items.reduce((earliest, i) =>
+        !earliest ? i.firedAt : (i.firedAt?.seconds ?? 0) < (earliest?.seconds ?? 0) ? i.firedAt : earliest
+      , null)
+      return {
+        orderId:   row.orderId,
+        tableId:   row.tableId ?? meta.tableId,
+        source:    meta.source ?? row.items[0]?.source ?? 'staff',
+        guestName: meta.guestName ?? row.items[0]?.guestName ?? null,
+        note:      meta.note ?? null,
+        total:     meta.total ?? null,
+        createdAt: meta.createdAt ?? firedAt,
+        items:     row.items,
+        status:    effStatus,
+      }
+    }).sort((a, b) => (a.createdAt?.seconds ?? 0) - (b.createdAt?.seconds ?? 0))
+  }, [activeItems, ordersMap])
+
   // Filter state
   const [statusFilter, setStatusFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
-  const [search, setSearch] = useState('')
+  const [search, setSearch]             = useState('')
 
   const filtered = useMemo(() => {
-    return orders.filter(o => {
+    return orderRows.filter(o => {
       if (statusFilter !== 'all' && o.status !== statusFilter) return false
-      if (sourceFilter !== 'all' && (o.source ?? 'staff') !== sourceFilter) return false
+      if (sourceFilter !== 'all' && o.source !== sourceFilter) return false
       if (search.trim()) {
         const q = search.toLowerCase()
         const tableName = `table ${tableMap[o.tableId]?.tableNumber ?? ''}`.toLowerCase()
-        const itemNames = (o.items ?? []).map(i => i.name.toLowerCase()).join(' ')
+        const itemNames = o.items.map(i => i.name.toLowerCase()).join(' ')
         if (!tableName.includes(q) && !itemNames.includes(q)) return false
       }
       return true
     })
-  }, [orders, statusFilter, sourceFilter, search, tableMap])
+  }, [orderRows, statusFilter, sourceFilter, search, tableMap])
 
   const counts = useMemo(() => {
-    const c = { all: orders.length }
-    ACTIVE_STATUSES.forEach(s => { c[s] = orders.filter(o => o.status === s).length })
+    const c = { all: orderRows.length, queued: 0, preparing: 0, ready: 0 }
+    orderRows.forEach(o => { c[o.status] = (c[o.status] ?? 0) + 1 })
     return c
-  }, [orders])
+  }, [orderRows])
+
+  const loading = loadingItems
 
   return (
     <div>
@@ -80,7 +139,7 @@ export default function Orders() {
       <div className="flex flex-wrap gap-3 mb-5 items-center">
         {/* Status pills */}
         <div className="flex gap-1.5 flex-wrap">
-          {[['all', 'All'], ...ACTIVE_STATUSES.map(s => [s, STATUS_META[s].label])].map(([val, lbl]) => (
+          {[['all', 'All'], ['queued', 'Queued'], ['preparing', 'In Preparation'], ['ready', 'Ready']].map(([val, lbl]) => (
             <button
               key={val}
               onClick={() => setStatusFilter(val)}
@@ -90,7 +149,7 @@ export default function Orders() {
                   : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-400'
               }`}
             >
-              {lbl} {val === 'all' ? `(${counts.all})` : `(${counts[val] ?? 0})`}
+              {lbl} ({val === 'all' ? counts.all : (counts[val] ?? 0)})
             </button>
           ))}
         </div>
@@ -135,11 +194,11 @@ export default function Orders() {
       ) : (
         <div className="space-y-3">
           {filtered.map(order => {
-            const table = tableMap[order.tableId]
-            const meta = STATUS_META[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-600' }
-            const isGuest = order.source === 'guest'
+            const table    = tableMap[order.tableId]
+            const meta     = STATUS_META[order.status] ?? { label: order.status, color: 'bg-gray-100 text-gray-600' }
+            const isGuest  = order.source === 'guest'
             return (
-              <div key={order.id} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4">
+              <div key={order.orderId} className="bg-white rounded-xl shadow-sm border border-gray-100 p-4 flex gap-4">
                 {/* Table badge */}
                 <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-indigo-50 border border-indigo-100">
                   <span className="text-xs text-indigo-400 font-medium leading-none">Table</span>
@@ -162,23 +221,29 @@ export default function Orders() {
                     <span className="text-xs text-gray-400 ml-auto">{timeAgo(order.createdAt)}</span>
                   </div>
 
-                  {/* Items */}
-                  <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                    {(order.items ?? []).map((item, i) => (
-                      <span key={i} className="text-sm text-gray-700">
-                        <span className="font-medium">{item.name}</span>
-                        <span className="text-gray-400"> ×{item.qty ?? 1}</span>
-                      </span>
-                    ))}
+                  {/* Items with per-item status dot */}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {order.items.map(item => {
+                      const im = ITEM_STATUS_META[item.status] ?? { dot: 'bg-gray-300', label: item.status }
+                      return (
+                        <span key={item.id} className="flex items-center gap-1.5 text-sm text-gray-700">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${im.dot}`} title={im.label} />
+                          <span className="font-medium">{item.name}</span>
+                          <span className="text-gray-400">×{item.qty ?? 1}</span>
+                        </span>
+                      )
+                    })}
                   </div>
 
                   {/* Footer */}
                   <div className="flex items-center gap-3 mt-1.5 text-xs text-gray-400">
                     {order.guestName && <span>👤 {order.guestName}</span>}
                     {order.note && <span className="italic">"{order.note}"</span>}
-                    <span className="ml-auto font-medium text-gray-600">
-                      ₹{((order.total ?? 0)).toLocaleString('en-IN')}
-                    </span>
+                    {order.total != null && (
+                      <span className="ml-auto font-medium text-gray-600">
+                        ₹{order.total.toLocaleString('en-IN')}
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
