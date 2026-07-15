@@ -252,7 +252,7 @@ export default function Board() {
       {/* Main content */}
       <main className="flex flex-col md:flex-row flex-1 gap-0 overflow-auto">
         {/* Now Serving */}
-        <section className="flex-1 flex flex-col p-6 md:p-8 border-b md:border-b-0 md:border-r border-gray-700">
+        <section className="w-full md:w-1/4 flex flex-col p-6 md:p-8 border-b md:border-b-0 md:border-r border-gray-700">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-indigo-400 mb-6">
             Now Serving
           </h2>
@@ -288,7 +288,7 @@ export default function Board() {
         </section>
 
         {/* Waiting List */}
-        <section className="w-full md:w-96 flex flex-col p-6 md:p-8 bg-gray-800/50">
+        <section className="w-full md:flex-1 flex flex-col p-6 md:p-8 bg-gray-800/50">
           <h2 className="text-sm font-semibold uppercase tracking-widest text-yellow-400 mb-6">
             Waiting
           </h2>

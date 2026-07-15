@@ -329,8 +329,8 @@ export default function QueueBoard() {
         </div>
       </header>
 
-      {/* Now Serving strip */}
-      {seated.length > 0 && (
+      {/* Now Serving strip — hidden on queue board */}
+      {false && seated.length > 0 && (
         <div className="bg-green-900/60 border-b border-green-700/50 px-8 py-3 flex items-center gap-4 flex-wrap">
           <span className="text-xs font-bold text-green-400 uppercase tracking-widest whitespace-nowrap">✅ Now Seated</span>
           {seated.map(b => (
