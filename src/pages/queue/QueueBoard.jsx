@@ -74,31 +74,128 @@ function speakCall(text, languages, repeatCount, repeatInterval) {
 const TODAY = new Date().toISOString().split('T')[0]
 
 const CARD_GAP = 12
-const CARD_SIZES = {
-  small:  { w: 150, h: 170 },
-  medium: { w: 200, h: 220 },
-  large:  { w: 260, h: 290 },
+const MIN_COUNTS = { large: 10, medium: 20, small: 30 }
+const SMALL_FEATURED = 3
+
+function maskName(name = '') {
+  const parts = name.trim().split(' ')
+  if (parts.length === 1) return parts[0]
+  return parts[0] + ' ' + parts.slice(1).map(p => p[0] + '.').join(' ')
+}
+
+function calcFit(cW, cH, minCount, gap) {
+  let best = { w: 80, h: 100 }
+  let bestArea = 0
+  for (let cols = 1; cols <= minCount; cols++) {
+    const rows = Math.ceil(minCount / cols)
+    const w = (cW - (cols - 1) * gap) / cols
+    const h = (cH - (rows - 1) * gap) / rows
+    if (w >= 60 && h >= 60 && w * h > bestArea) {
+      bestArea = w * h
+      best = { w: Math.floor(w), h: Math.floor(h) }
+    }
+  }
+  return best
+}
+
+function tokenFontClass(h) {
+  if (h < 120) return 'text-xl'
+  if (h < 160) return 'text-2xl'
+  if (h < 200) return 'text-3xl'
+  if (h < 250) return 'text-4xl'
+  return 'text-5xl'
+}
+
+function TokenCard({ b, globalIdx, card, ewtData, animDelay }) {
+  const isNext = globalIdx === 0
+  const ewt = ewtData[globalIdx]
+  return (
+    <div
+      style={{
+        width: card.w, height: card.h, flexShrink: 0,
+        animation: `tokenSlideIn 0.4s ease both ${animDelay}ms${isNext ? ', tokenPulseGlow 2.4s ease-in-out infinite' : ''}`,
+      }}
+      className={`rounded-2xl border flex flex-col items-center justify-center gap-1 px-2
+        ${isNext ? 'bg-amber-500/20 border-amber-500/60' : 'bg-gray-800 border-gray-700'}`}
+    >
+      <div className={`${tokenFontClass(card.h)} font-black tracking-tight ${isNext ? 'text-amber-400' : 'text-white'}`}>
+        {b.token ?? '—'}
+      </div>
+      <div className="text-xs font-semibold text-gray-200 text-center truncate w-full px-1">
+        {maskName(b.guestName)}
+      </div>
+      {card.h >= 130 && (
+        <div className="text-xs text-gray-400">
+          👥 {b.partySize}{b.tablePreference && b.tablePreference !== 'Any' ? ` · ${b.tablePreference}` : ''}
+        </div>
+      )}
+      {card.h >= 110 && (
+        <div className={`text-xs font-bold px-2 py-0.5 rounded-full mt-0.5 ${isNext ? 'bg-amber-500 text-white' : 'bg-gray-700 text-gray-300'}`}>
+          {isNext && ewt === 0 ? '● Ready!' : ewt === 0 ? 'Soon' : `~${ewt}m`}
+        </div>
+      )}
+      {isNext && card.h >= 140 && (
+        <div className="text-xs font-bold text-amber-400 animate-pulse">Next up</div>
+      )}
+    </div>
+  )
+}
+
+function OverflowCard({ card, count }) {
+  return (
+    <div
+      style={{ width: card.w, height: card.h, flexShrink: 0, animation: 'tokenSlideIn 0.4s ease both' }}
+      className="rounded-2xl border border-gray-600 bg-gray-800/60 flex flex-col items-center justify-center gap-1 px-2"
+    >
+      <div className="text-2xl">⏳</div>
+      <div className="text-sm font-bold text-gray-300 text-center">+{count} more</div>
+      <div className="text-xs text-gray-500 text-center">in queue</div>
+    </div>
+  )
 }
 
 function QueueGrid({ waiting, calcEwt, cardSize = 'medium' }) {
   const containerRef = useRef(null)
-  const [maxCards, setMaxCards] = useState(20)
-  const { w: CARD_W, h: CARD_H } = CARD_SIZES[cardSize] || CARD_SIZES.medium
+  const [containerDims, setContainerDims] = useState({ w: 0, h: 0 })
 
   useEffect(() => {
     const el = containerRef.current
     if (!el) return
     function measure() {
       const { width, height } = el.getBoundingClientRect()
-      const cols = Math.max(1, Math.floor((width + CARD_GAP) / (CARD_W + CARD_GAP)))
-      const rows = Math.max(1, Math.floor((height + CARD_GAP) / (CARD_H + CARD_GAP)))
-      setMaxCards(cols * rows)
+      setContainerDims({ w: width, h: height })
     }
     measure()
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [CARD_W, CARD_H])
+  }, [])
+
+  const { w: cW, h: cH } = containerDims
+
+  let cum = 0
+  const ewtData = waiting.map(b => {
+    const ewt = calcEwt(b.tablePreference ?? 'Any', cum)
+    cum += b.partySize || 2
+    return ewt
+  })
+
+  const medCard = cW && cH ? calcFit(cW, cH, MIN_COUNTS.medium, CARD_GAP) : { w: 200, h: 220 }
+  const isSmall = cardSize === 'small'
+  const featCount = isSmall ? Math.min(SMALL_FEATURED, waiting.length) : 0
+  const featCard = isSmall ? medCard : null
+  const featRowH = featCard ? featCard.h + CARD_GAP : 0
+  const mainMinCount = isSmall ? Math.max(1, MIN_COUNTS.small - SMALL_FEATURED) : (MIN_COUNTS[cardSize] ?? MIN_COUNTS.medium)
+  const mainAvailH = cW && cH ? Math.max(60, cH - featRowH) : 400
+  const mainCard = cW && cH ? calcFit(cW, mainAvailH, mainMinCount, CARD_GAP) : { w: 150, h: 170 }
+  const mainCols = mainCard.w ? Math.max(1, Math.floor((cW + CARD_GAP) / (mainCard.w + CARD_GAP))) : 1
+  const mainRows = mainCard.h ? Math.max(1, Math.floor((mainAvailH + CARD_GAP) / (mainCard.h + CARD_GAP))) : 1
+  const maxMain = mainCols * mainRows
+  const totalMax = featCount + maxMain
+  const overflow = waiting.length > totalMax
+  const featItems = waiting.slice(0, featCount)
+  const mainItems = overflow ? waiting.slice(featCount, totalMax - 1) : waiting.slice(featCount)
+  const overflowCount = overflow ? waiting.length - (totalMax - 1) : 0
 
   if (waiting.length === 0) {
     return (
@@ -110,102 +207,35 @@ function QueueGrid({ waiting, calcEwt, cardSize = 'medium' }) {
     )
   }
 
-  const overflow = waiting.length > maxCards
-  const visible = overflow ? waiting.slice(0, maxCards - 1) : waiting
-
-  // Precompute EWT for all visible cards
-  let cum = 0
-  const ewtData = waiting.map(b => {
-    const ewt = calcEwt(b.tablePreference ?? 'Any', cum)
-    cum += b.partySize || 2
-    return ewt
-  })
-
   return (
-    <div
-      ref={containerRef}
-      className="flex-1 overflow-hidden p-4"
-      style={{ display: 'flex', alignContent: 'flex-start', flexWrap: 'wrap', gap: CARD_GAP }}
-    >
+    <div ref={containerRef} className="flex-1 overflow-hidden p-3 flex flex-col" style={{ gap: CARD_GAP }}>
       <style>{`
         @keyframes tokenSlideIn {
-          from { opacity: 0; transform: translateY(18px) scale(0.93); }
-          to   { opacity: 1; transform: translateY(0)   scale(1); }
+          from { opacity: 0; transform: translateY(16px) scale(0.94); }
+          to   { opacity: 1; transform: translateY(0) scale(1); }
         }
         @keyframes tokenPulseGlow {
           0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
-          50%       { box-shadow: 0 0 18px 4px rgba(245,158,11,0.35); }
+          50%       { box-shadow: 0 0 20px 5px rgba(245,158,11,0.35); }
         }
       `}</style>
 
-      {visible.map((b, idx) => {
-        const isNext = idx === 0
-        const ewt = ewtData[idx]
-        const fontSize = cardSize === 'small' ? 'text-2xl' : cardSize === 'large' ? 'text-5xl' : 'text-4xl'
-        return (
-          <div
-            key={b.id}
-            style={{
-              width: CARD_W,
-              height: CARD_H,
-              animation: `tokenSlideIn 0.4s ease both ${idx * 40}ms${isNext ? ', tokenPulseGlow 2.4s ease-in-out infinite' : ''}`,
-            }}
-            className={`flex-shrink-0 rounded-2xl border flex flex-col items-center justify-center gap-2 px-3
-              ${isNext
-                ? 'bg-amber-500/20 border-amber-500/60'
-                : 'bg-gray-800 border-gray-700'
-              }`}
-          >
-            {/* Token number */}
-            <div className={`${fontSize} font-black tracking-tight ${isNext ? 'text-amber-400' : 'text-white'}`}>
-              {b.token ?? '—'}
-            </div>
-
-            {/* Name */}
-            <div className="text-sm font-semibold text-gray-200 text-center truncate w-full px-1">
-              {maskName(b.guestName)}
-            </div>
-
-            {/* Party size */}
-            <div className="text-xs text-gray-400">
-              👥 {b.partySize}{b.tablePreference && b.tablePreference !== 'Any' ? ` · ${b.tablePreference}` : ''}
-            </div>
-
-            {/* EWT */}
-            <div className={`text-xs font-bold mt-1 px-2.5 py-0.5 rounded-full ${
-              isNext ? 'bg-amber-500 text-white' : 'bg-gray-700 text-gray-300'
-            }`}>
-              {isNext && ewt === 0 ? '● Ready!' : ewt === 0 ? 'Soon' : `~${ewt}m`}
-            </div>
-
-            {isNext && (
-              <div className="text-xs font-bold text-amber-400 animate-pulse">Next up</div>
-            )}
-          </div>
-        )
-      })}
-
-      {/* Overflow card */}
-      {overflow && (
-        <div
-          style={{ width: CARD_W, height: CARD_H, animation: 'tokenSlideIn 0.4s ease both' }}
-          className="flex-shrink-0 rounded-2xl border border-gray-600 bg-gray-800/60 flex flex-col items-center justify-center gap-2 px-3"
-        >
-          <div className="text-3xl">⏳</div>
-          <div className="text-sm font-bold text-gray-300 text-center">
-            +{waiting.length - (maxCards - 1)} more
-          </div>
-          <div className="text-xs text-gray-500 text-center">tokens in queue</div>
+      {featItems.length > 0 && (
+        <div style={{ display: 'flex', gap: CARD_GAP, flexShrink: 0 }}>
+          {featItems.map((b, idx) => (
+            <TokenCard key={b.id} b={b} globalIdx={idx} card={featCard} ewtData={ewtData} animDelay={idx * 40} />
+          ))}
         </div>
       )}
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: CARD_GAP, alignContent: 'flex-start', overflow: 'hidden' }}>
+        {mainItems.map((b, idx) => (
+          <TokenCard key={b.id} b={b} globalIdx={featCount + idx} card={mainCard} ewtData={ewtData} animDelay={(featCount + idx) * 40} />
+        ))}
+        {overflow && <OverflowCard card={mainCard} count={overflowCount} />}
+      </div>
     </div>
   )
-}
-
-function maskName(name = '') {
-  const parts = name.trim().split(' ')
-  if (parts.length === 1) return parts[0]
-  return parts[0] + ' ' + parts.slice(1).map(p => p[0] + '.').join(' ')
 }
 
 function Clock() {
