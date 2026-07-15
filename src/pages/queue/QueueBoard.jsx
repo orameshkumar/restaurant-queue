@@ -301,13 +301,6 @@ export default function QueueBoard() {
                     : 'bg-gray-800 border-gray-700'
                 }`}
               >
-                {/* Position bubble */}
-                <span className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center font-black text-xl ${
-                  idx === 0 ? 'bg-amber-500 text-white' : 'bg-gray-700 text-gray-300'
-                }`}>
-                  {idx + 1}
-                </span>
-
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-0.5">
