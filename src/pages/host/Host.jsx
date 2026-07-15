@@ -1154,6 +1154,7 @@ function QueueTab() {
       await setDoc(doc(db, 'restaurantSettings', 'activeCall'), {
         token: booking.token || '',
         guestName: booking.guestName || 'Guest',
+        persons: booking.partySize || 1,
         calledAt: serverTimestamp(),
       });
       toast.success(`📣 Called ${booking.token} — ${booking.guestName}`);

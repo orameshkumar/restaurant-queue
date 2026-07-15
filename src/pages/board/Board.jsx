@@ -14,10 +14,21 @@ function isToday(ts) {
   );
 }
 
-function buildText(template, token, name) {
-  return (template || 'Token {token}, {name}, please proceed to the counter')
+function getGreeting() {
+  const h = new Date().getHours();
+  if (h >= 5 && h < 12) return 'Good morning';
+  if (h >= 12 && h < 17) return 'Good afternoon';
+  if (h >= 17 && h < 21) return 'Good evening';
+  return 'Good evening';
+}
+
+function buildText(template, token, name, persons) {
+  const greeting = getGreeting();
+  return (template || '{greeting}. Token {token}, {name}, party of {persons}, please proceed to the counter.')
+    .replace(/{greeting}/g, greeting)
     .replace(/{token}/g, token)
-    .replace(/{name}/g, name);
+    .replace(/{name}/g, name)
+    .replace(/{persons}/g, persons);
 }
 
 function speakInLanguages(text, languages, repeatCount, repeatInterval) {
@@ -29,23 +40,37 @@ function speakInLanguages(text, languages, repeatCount, repeatInterval) {
     if (round >= repeatCount) return;
     round++;
     let i = 0;
+
     function speakNext() {
       if (i >= langs.length) {
         if (round < repeatCount) setTimeout(speakRound, repeatInterval * 1000);
         return;
       }
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.lang = langs[i];
-      utt.rate = 0.9;
-      utt.onend = () => { i++; speakNext(); };
-      utt.onerror = () => { i++; speakNext(); };
-      window.speechSynthesis.speak(utt);
+      // Warm-up utterance — Web Speech API suppresses the first few ms of audio;
+      // speaking a near-silent comma first lets the engine stabilise before the real text.
+      const warmup = new SpeechSynthesisUtterance(',');
+      warmup.lang = langs[i];
+      warmup.volume = 0;
+      warmup.rate = 1;
+      warmup.onend = () => {
+        const utt = new SpeechSynthesisUtterance(text);
+        utt.lang = langs[i];
+        utt.rate = 0.88;
+        utt.pitch = 1;
+        utt.onend = () => { i++; speakNext(); };
+        utt.onerror = () => { i++; speakNext(); };
+        window.speechSynthesis.speak(utt);
+      };
+      warmup.onerror = warmup.onend;
+      window.speechSynthesis.speak(warmup);
     }
+
     speakNext();
   }
 
   window.speechSynthesis.cancel();
-  speakRound();
+  // Small delay after cancel() so the engine fully resets before the warm-up fires
+  setTimeout(speakRound, 250);
 }
 
 export default function Board() {
@@ -53,7 +78,7 @@ export default function Board() {
   const [restaurantName, setRestaurantName] = useState('Restaurant');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [callingBanner, setCallingBanner] = useState(null);
-  const queueCallSettings = useRef({ enabled: true, repeatCount: 3, repeatInterval: 5, languages: ['en-US'], template: 'Token {token}, {name}, please proceed to the counter' });
+  const queueCallSettings = useRef({ enabled: true, repeatCount: 3, repeatInterval: 5, languages: ['en-US'], template: '{greeting}. Token {token}, {name}, party of {persons}, please proceed to the counter.' });
   const lastCallAt = useRef(null);
   const { calcEwt } = useEwt();
 
@@ -103,7 +128,7 @@ export default function Board() {
       const cfg = queueCallSettings.current;
       if (!cfg.enabled) return;
 
-      const text = buildText(cfg.template, data.token, data.guestName);
+      const text = buildText(cfg.template, data.token, data.guestName, data.persons ?? 1);
       setCallingBanner({ token: data.token, name: data.guestName });
       setTimeout(() => setCallingBanner(null), (cfg.repeatCount * (cfg.repeatInterval + 3)) * 1000);
       speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval);

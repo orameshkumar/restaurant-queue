@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS = {
     repeatCount: 3,
     repeatInterval: 5,
     languages: ['en-US'],
-    template: 'Token {token}, {name}, please proceed to the counter',
+    template: '{greeting}. Token {token}, {name}, party of {persons}, please proceed to the counter.',
   },
   standardItemDuration: 5,
   sectionEwt: { Indoor: 30, Outdoor: 25, 'Bar & Lounge': 20, 'Private Dining': 45 },
@@ -496,7 +496,12 @@ export default function Settings() {
               onChange={e => handleQueueCallChange('template', e.target.value)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
-            <p className="text-xs text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{token}'}</code> and <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> as placeholders</p>
+            <p className="text-xs text-gray-400 mt-1">
+              Placeholders: <code className="bg-gray-100 px-1 rounded">{'{greeting}'}</code> (Good morning/afternoon/evening),{' '}
+              <code className="bg-gray-100 px-1 rounded">{'{token}'}</code>,{' '}
+              <code className="bg-gray-100 px-1 rounded">{'{name}'}</code>,{' '}
+              <code className="bg-gray-100 px-1 rounded">{'{persons}'}</code>
+            </p>
           </div>
 
           <div>
