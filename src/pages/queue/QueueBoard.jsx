@@ -37,7 +37,7 @@ function speakCall(text, languages, repeatCount, repeatInterval, onLog) {
       const warmup = new SpeechSynthesisUtterance(',')
       warmup.lang = langs[i]; warmup.volume = 0; warmup.rate = 1
       warmup.onend = () => {
-        const utt = new SpeechSynthesisUtterance(text)
+        const utt = new SpeechSynthesisUtterance('. . . ' + text)
         utt.lang = langs[i]; utt.rate = 0.88; utt.pitch = 1
         utt.onstart = () => onLog?.(`▶ [${langs[i]}]`)
         utt.onend = () => { onLog?.(`✓ [${langs[i]}]`); i++; next() }

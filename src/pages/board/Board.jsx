@@ -54,7 +54,7 @@ function speakInLanguages(text, languages, repeatCount, repeatInterval, onLog) {
       warmup.rate = 1;
       warmup.onend = () => {
         onLog?.(`Warmup done for lang ${langs[i]}, speaking main text`);
-        const utt = new SpeechSynthesisUtterance(text);
+        const utt = new SpeechSynthesisUtterance('. . . ' + text);
         utt.lang = langs[i];
         utt.rate = 0.88;
         utt.pitch = 1;
