@@ -225,7 +225,6 @@ export default function QueueBoard() {
   const [restaurantName, setRestaurantName] = useState('Restaurant')
   const [audioUnlocked, setAudioUnlocked] = useState(false)
   const [callingBanner, setCallingBanner] = useState(null)
-  const [showNowServing, setShowNowServing] = useState(true)
   const [tokenCardSize, setTokenCardSize] = useState('medium')
   const audioUnlockedRef = useRef(false)
   const pendingCall = useRef(null)
@@ -372,12 +371,6 @@ export default function QueueBoard() {
             <p className="text-2xl font-semibold text-gray-300"><Clock /></p>
             <p className="text-xs text-gray-500">{new Date().toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</p>
           </div>
-          <button
-            onClick={e => { e.stopPropagation(); setShowNowServing(v => !v) }}
-            className="text-xs px-3 py-1.5 rounded-lg border border-gray-600 text-gray-400 hover:text-white hover:border-gray-400 transition-colors"
-          >
-            {showNowServing ? '👁 Hide Seated' : '👁 Show Seated'}
-          </button>
           {/* Compact QR — top-right corner */}
           <div className="flex items-center gap-3 border-l border-gray-700 pl-6">
             <div className="bg-white p-1.5 rounded-lg shadow-lg">
@@ -391,8 +384,8 @@ export default function QueueBoard() {
         </div>
       </header>
 
-      {/* Now Seated strip — toggled via header button */}
-      {showNowServing && seated.length > 0 && (
+      {/* Now Seated strip — hidden on queue board */}
+      {false && seated.length > 0 && (
         <div className="bg-green-900/60 border-b border-green-700/50 px-8 py-3 flex items-center gap-4 flex-wrap">
           <span className="text-xs font-bold text-green-400 uppercase tracking-widest whitespace-nowrap">✅ Now Seated</span>
           {seated.map(b => (
