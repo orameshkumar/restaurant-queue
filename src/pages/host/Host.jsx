@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { collection, addDoc, updateDoc, doc, getDoc, getDocs, query, where, serverTimestamp, Timestamp, writeBatch } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, getDoc, getDocs, query, where, serverTimestamp, Timestamp, writeBatch, setDoc } from 'firebase/firestore';
 import QRCode from 'react-qr-code';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -1149,6 +1149,20 @@ function QueueTab() {
     }
   }
 
+  async function handleCall(booking) {
+    try {
+      await setDoc(doc(db, 'restaurantSettings', 'activeCall'), {
+        token: booking.token || '',
+        guestName: booking.guestName || 'Guest',
+        calledAt: serverTimestamp(),
+      });
+      toast.success(`📣 Called ${booking.token} — ${booking.guestName}`);
+    } catch (err) {
+      console.error(err);
+      toast.error('Call failed.');
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Pending Draft Orders */}
@@ -1420,6 +1434,13 @@ function QueueTab() {
                                 className={`text-xs px-2 py-1 border rounded-lg transition font-medium whitespace-nowrap ${statusQrBookingId === booking.id ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'border-gray-300 text-gray-600 hover:bg-gray-100'}`}
                               >
                                 📲 QR
+                              </button>
+                              <button
+                                onClick={() => handleCall(booking)}
+                                title="Announce on queue board"
+                                className="text-xs px-2.5 py-1 border border-amber-300 text-amber-700 bg-amber-50 rounded-lg hover:bg-amber-100 transition font-medium whitespace-nowrap"
+                              >
+                                📣 Call
                               </button>
                               <button
                                 onClick={() => setAssignTarget(booking)}

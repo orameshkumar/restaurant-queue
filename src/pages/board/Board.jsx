@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { collection, query, onSnapshot, orderBy } from 'firebase/firestore';
+import { useState, useEffect, useRef } from 'react';
+import { collection, query, onSnapshot, orderBy, doc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useEwt } from '../../hooks/useEwt';
 
@@ -14,10 +14,47 @@ function isToday(ts) {
   );
 }
 
+function buildText(template, token, name) {
+  return (template || 'Token {token}, {name}, please proceed to the counter')
+    .replace(/{token}/g, token)
+    .replace(/{name}/g, name);
+}
+
+function speakInLanguages(text, languages, repeatCount, repeatInterval) {
+  if (!window.speechSynthesis) return;
+  const langs = (languages && languages.length) ? languages : ['en-US'];
+  let round = 0;
+
+  function speakRound() {
+    if (round >= repeatCount) return;
+    round++;
+    let i = 0;
+    function speakNext() {
+      if (i >= langs.length) {
+        if (round < repeatCount) setTimeout(speakRound, repeatInterval * 1000);
+        return;
+      }
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.lang = langs[i];
+      utt.rate = 0.9;
+      utt.onend = () => { i++; speakNext(); };
+      utt.onerror = () => { i++; speakNext(); };
+      window.speechSynthesis.speak(utt);
+    }
+    speakNext();
+  }
+
+  window.speechSynthesis.cancel();
+  speakRound();
+}
+
 export default function Board() {
   const [bookings, setBookings] = useState([]);
   const [restaurantName, setRestaurantName] = useState('Restaurant');
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [callingBanner, setCallingBanner] = useState(null);
+  const queueCallSettings = useRef({ enabled: true, repeatCount: 3, repeatInterval: 5, languages: ['en-US'], template: 'Token {token}, {name}, please proceed to the counter' });
+  const lastCallAt = useRef(null);
   const { calcEwt } = useEwt();
 
   // Clock — updates every second
@@ -41,14 +78,35 @@ export default function Board() {
     return () => unsub();
   }, []);
 
-  // Firestore: restaurantSettings listener
+  // Firestore: restaurantSettings — name + queueCall config
   useEffect(() => {
     const q = query(collection(db, 'restaurantSettings'), orderBy('createdAt', 'asc'));
     const unsub = onSnapshot(q, (snap) => {
       if (!snap.empty) {
         const data = snap.docs[0].data();
         if (data.restaurantName) setRestaurantName(data.restaurantName);
+        if (data.queueCall) queueCallSettings.current = { ...queueCallSettings.current, ...data.queueCall };
       }
+    });
+    return () => unsub();
+  }, []);
+
+  // Firestore: activeCall listener — triggers voice announcement
+  useEffect(() => {
+    const unsub = onSnapshot(doc(db, 'restaurantSettings', 'activeCall'), (snap) => {
+      if (!snap.exists()) return;
+      const data = snap.data();
+      const calledAt = data.calledAt?.seconds ?? 0;
+      if (calledAt === lastCallAt.current) return;
+      lastCallAt.current = calledAt;
+
+      const cfg = queueCallSettings.current;
+      if (!cfg.enabled) return;
+
+      const text = buildText(cfg.template, data.token, data.guestName);
+      setCallingBanner({ token: data.token, name: data.guestName });
+      setTimeout(() => setCallingBanner(null), (cfg.repeatCount * (cfg.repeatInterval + 3)) * 1000);
+      speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval);
     });
     return () => unsub();
   }, []);
@@ -78,6 +136,19 @@ export default function Board() {
           <p className="text-3xl font-mono font-bold text-indigo-300">{timeString}</p>
         </div>
       </header>
+
+      {/* Now Calling banner */}
+      {callingBanner && (
+        <div className="bg-amber-500 text-white px-6 py-4 flex items-center justify-center gap-4 animate-pulse">
+          <span className="text-3xl">📣</span>
+          <div className="text-center">
+            <p className="text-sm font-semibold uppercase tracking-widest opacity-80">Now Calling</p>
+            <p className="text-2xl font-bold tracking-wide">{callingBanner.token} — {callingBanner.name}</p>
+            <p className="text-sm opacity-80">Please proceed to the counter</p>
+          </div>
+          <span className="text-3xl">📣</span>
+        </div>
+      )}
 
       {/* Main content */}
       <main className="flex flex-col md:flex-row flex-1 gap-0 overflow-auto">

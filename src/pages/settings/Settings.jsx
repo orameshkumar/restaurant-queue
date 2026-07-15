@@ -22,6 +22,13 @@ const DEFAULT_SETTINGS = {
   merchantId: '',
   autoFireGuestOrders: false,
   autoAssignQueue: false,
+  queueCall: {
+    enabled: true,
+    repeatCount: 3,
+    repeatInterval: 5,
+    languages: ['en-US'],
+    template: 'Token {token}, {name}, please proceed to the counter',
+  },
   standardItemDuration: 5,
   sectionEwt: { Indoor: 30, Outdoor: 25, 'Bar & Lounge': 20, 'Private Dining': 45 },
   operatingHours: Object.fromEntries(
@@ -47,9 +54,20 @@ export default function Settings() {
           ...DEFAULT_SETTINGS.operatingHours,
           ...(settingsDoc.operatingHours || {}),
         },
+        queueCall: {
+          ...DEFAULT_SETTINGS.queueCall,
+          ...(settingsDoc.queueCall || {}),
+        },
       }));
     }
   }, [settingsDoc]);
+
+  function handleQueueCallChange(field, value) {
+    setForm((prev) => ({
+      ...prev,
+      queueCall: { ...prev.queueCall, [field]: value },
+    }));
+  }
 
   function handleChange(e) {
     const { name, value, type, checked } = e.target;
@@ -428,6 +446,68 @@ export default function Settings() {
               <label htmlFor="settings-autoassign" className="text-sm font-medium text-gray-800">Smart queue matching on floor plan</label>
               <p className="text-xs text-gray-400 mt-0.5">When enabled, each available table shows the best-matched waiting guest with a one-click Seat button.</p>
             </div>
+          </div>
+        </section>
+
+        {/* Queue Announcements */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Queue Announcements</h2>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <span className="text-sm text-gray-700">Voice announcements</span>
+              <button
+                type="button"
+                onClick={() => handleQueueCallChange('enabled', !(form.queueCall?.enabled ?? true))}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${form.queueCall?.enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${form.queueCall?.enabled ? 'translate-x-4' : 'translate-x-1'}`} />
+              </button>
+            </label>
+          </div>
+          <p className="text-xs text-gray-400">When staff click <strong>Call</strong> on a queue token, the board TV speaks the announcement aloud.</p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Repeat count</label>
+              <input
+                type="number" min={1} max={10}
+                value={form.queueCall?.repeatCount ?? 3}
+                onChange={e => handleQueueCallChange('repeatCount', Number(e.target.value))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+              <p className="text-xs text-gray-400 mt-1">How many times to repeat the announcement</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Interval between repeats (seconds)</label>
+              <input
+                type="number" min={2} max={60}
+                value={form.queueCall?.repeatInterval ?? 5}
+                onChange={e => handleQueueCallChange('repeatInterval', Number(e.target.value))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Announcement template</label>
+            <input
+              type="text"
+              value={form.queueCall?.template ?? ''}
+              onChange={e => handleQueueCallChange('template', e.target.value)}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <p className="text-xs text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{token}'}</code> and <code className="bg-gray-100 px-1 rounded">{'{name}'}</code> as placeholders</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Announcement languages (one per line — e.g. en-US, hi-IN, ta-IN)</label>
+            <textarea
+              rows={3}
+              value={(form.queueCall?.languages ?? ['en-US']).join('\n')}
+              onChange={e => handleQueueCallChange('languages', e.target.value.split('\n').map(l => l.trim()).filter(Boolean))}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <p className="text-xs text-gray-400 mt-1">Announcement is spoken in each language in order. Voice availability depends on the board TV's OS.</p>
           </div>
         </section>
 
