@@ -73,14 +73,17 @@ function speakCall(text, languages, repeatCount, repeatInterval) {
 
 const TODAY = new Date().toISOString().split('T')[0]
 
-// Card dimensions + gap (px) — used for overflow math
-const CARD_W = 200
-const CARD_H = 220
 const CARD_GAP = 12
+const CARD_SIZES = {
+  small:  { w: 150, h: 170 },
+  medium: { w: 200, h: 220 },
+  large:  { w: 260, h: 290 },
+}
 
-function QueueGrid({ waiting, calcEwt }) {
+function QueueGrid({ waiting, calcEwt, cardSize = 'medium' }) {
   const containerRef = useRef(null)
   const [maxCards, setMaxCards] = useState(20)
+  const { w: CARD_W, h: CARD_H } = CARD_SIZES[cardSize] || CARD_SIZES.medium
 
   useEffect(() => {
     const el = containerRef.current
@@ -95,7 +98,7 @@ function QueueGrid({ waiting, calcEwt }) {
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [])
+  }, [CARD_W, CARD_H])
 
   if (waiting.length === 0) {
     return (
@@ -138,6 +141,7 @@ function QueueGrid({ waiting, calcEwt }) {
       {visible.map((b, idx) => {
         const isNext = idx === 0
         const ewt = ewtData[idx]
+        const fontSize = cardSize === 'small' ? 'text-2xl' : cardSize === 'large' ? 'text-5xl' : 'text-4xl'
         return (
           <div
             key={b.id}
@@ -153,7 +157,7 @@ function QueueGrid({ waiting, calcEwt }) {
               }`}
           >
             {/* Token number */}
-            <div className={`text-4xl font-black tracking-tight ${isNext ? 'text-amber-400' : 'text-white'}`}>
+            <div className={`${fontSize} font-black tracking-tight ${isNext ? 'text-amber-400' : 'text-white'}`}>
               {b.token ?? '—'}
             </div>
 
@@ -222,6 +226,7 @@ export default function QueueBoard() {
   const [audioUnlocked, setAudioUnlocked] = useState(false)
   const [callingBanner, setCallingBanner] = useState(null)
   const [showNowServing, setShowNowServing] = useState(true)
+  const [tokenCardSize, setTokenCardSize] = useState('medium')
   const audioUnlockedRef = useRef(false)
   const pendingCall = useRef(null)
   const lastCallAt = useRef(null)
@@ -260,6 +265,7 @@ export default function QueueBoard() {
         const data = snap.data()
         setRestaurantName(data.restaurantName ?? 'Restaurant')
         if (data.queueCall) callSettings.current = { ...callSettings.current, ...data.queueCall }
+        if (data.tokenCardSize) setTokenCardSize(data.tokenCardSize)
       }
     }).catch(() => {})
   }, [])
@@ -400,7 +406,7 @@ export default function QueueBoard() {
       )}
 
       {/* Queue grid — fixed-size animated token cards */}
-      <QueueGrid waiting={waiting} calcEwt={calcEwt} />
+      <QueueGrid waiting={waiting} calcEwt={calcEwt} cardSize={tokenCardSize} />
     </div>
   )
 }

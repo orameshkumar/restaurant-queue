@@ -29,6 +29,7 @@ const DEFAULT_SETTINGS = {
     languages: ['en-US'],
     template: '{greeting}. Token {token}, {name}, party of {persons}, please proceed to the counter.',
   },
+  tokenCardSize: 'medium',
   standardItemDuration: 5,
   sectionEwt: { Indoor: 30, Outdoor: 25, 'Bar & Lounge': 20, 'Private Dining': 45 },
   operatingHours: Object.fromEntries(
@@ -445,6 +446,35 @@ export default function Settings() {
             <div>
               <label htmlFor="settings-autoassign" className="text-sm font-medium text-gray-800">Smart queue matching on floor plan</label>
               <p className="text-xs text-gray-400 mt-0.5">When enabled, each available table shows the best-matched waiting guest with a one-click Seat button.</p>
+            </div>
+          </div>
+        </section>
+
+        {/* Token Card Size */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Queue Board Display</h2>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Token Card Size</label>
+            <div className="flex gap-3">
+              {[
+                { value: 'small',  label: 'Small',  desc: '150×170' },
+                { value: 'medium', label: 'Medium', desc: '200×220' },
+                { value: 'large',  label: 'Large',  desc: '260×290' },
+              ].map(opt => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => setForm(prev => ({ ...prev, tokenCardSize: opt.value }))}
+                  className={`flex-1 rounded-xl border-2 py-3 flex flex-col items-center gap-1 transition-colors ${
+                    form.tokenCardSize === opt.value
+                      ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  <span className="font-semibold text-sm">{opt.label}</span>
+                  <span className="text-xs opacity-70">{opt.desc} px</span>
+                </button>
+              ))}
             </div>
           </div>
         </section>

@@ -79,10 +79,12 @@ function speakInLanguages(text, languages, repeatCount, repeatInterval) {
   setTimeout(speakRound, 250);
 }
 
-// Card dimensions + gap (px)
-const CARD_W = 200;
-const CARD_H = 220;
 const CARD_GAP = 12;
+const CARD_SIZES = {
+  small:  { w: 150, h: 170 },
+  medium: { w: 200, h: 220 },
+  large:  { w: 260, h: 290 },
+};
 
 function maskName(name = '') {
   const parts = name.trim().split(' ');
@@ -90,9 +92,10 @@ function maskName(name = '') {
   return parts[0] + ' ' + parts.slice(1).map(p => p[0] + '.').join(' ');
 }
 
-function QueueGrid({ waiting, calcEwt }) {
+function QueueGrid({ waiting, calcEwt, cardSize = 'medium' }) {
   const containerRef = useRef(null);
   const [maxCards, setMaxCards] = useState(20);
+  const { w: CARD_W, h: CARD_H } = CARD_SIZES[cardSize] || CARD_SIZES.medium;
 
   useEffect(() => {
     const el = containerRef.current;
@@ -107,7 +110,7 @@ function QueueGrid({ waiting, calcEwt }) {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, []);
+  }, [CARD_W, CARD_H]);
 
   if (waiting.length === 0) {
     return (
@@ -147,6 +150,7 @@ function QueueGrid({ waiting, calcEwt }) {
       {visible.map((b, idx) => {
         const isNext = idx === 0;
         const ewt = ewtData[idx];
+        const fontSize = cardSize === 'small' ? 'text-2xl' : cardSize === 'large' ? 'text-5xl' : 'text-4xl';
         return (
           <div
             key={b.id}
@@ -161,7 +165,7 @@ function QueueGrid({ waiting, calcEwt }) {
                 : 'bg-gray-800 border-gray-700'
               }`}
           >
-            <div className={`text-4xl font-black tracking-tight ${isNext ? 'text-amber-400' : 'text-white'}`}>
+            <div className={`${fontSize} font-black tracking-tight ${isNext ? 'text-amber-400' : 'text-white'}`}>
               {b.token ?? b.tokenNumber ?? b.queueSequence ?? '—'}
             </div>
             <div className="text-sm font-semibold text-gray-200 text-center truncate w-full px-1">
@@ -185,6 +189,7 @@ function QueueGrid({ waiting, calcEwt }) {
       {overflow && (
         <div
           style={{ width: CARD_W, height: CARD_H, animation: 'tokenSlideIn 0.4s ease both' }}
+
           className="flex-shrink-0 rounded-2xl border border-gray-600 bg-gray-800/60 flex flex-col items-center justify-center gap-2 px-3"
         >
           <div className="text-3xl">⏳</div>
@@ -205,6 +210,7 @@ export default function Board() {
   const [callingBanner, setCallingBanner] = useState(null);
   const [audioUnlocked, setAudioUnlocked] = useState(false);
   const [showSeated, setShowSeated] = useState(true);
+  const [tokenCardSize, setTokenCardSize] = useState('medium');
   const audioUnlockedRef = useRef(false);
   const queueCallSettings = useRef({ enabled: true, repeatCount: 3, repeatInterval: 5, languages: ['en-US'], template: '{greeting}. Token {token}, {name}, party of {persons}, please proceed to the counter.' });
   const lastCallAt = useRef(null);
@@ -260,6 +266,7 @@ export default function Board() {
         const data = snap.docs[0].data();
         if (data.restaurantName) setRestaurantName(data.restaurantName);
         if (data.queueCall) queueCallSettings.current = { ...queueCallSettings.current, ...data.queueCall };
+        if (data.tokenCardSize) setTokenCardSize(data.tokenCardSize);
       }
     });
   }, []);
@@ -382,7 +389,7 @@ export default function Board() {
           <div className="px-6 pt-6 pb-2">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-yellow-400">Waiting</h2>
           </div>
-          <QueueGrid waiting={waitingTokens} calcEwt={calcEwt} />
+          <QueueGrid waiting={waitingTokens} calcEwt={calcEwt} cardSize={tokenCardSize} />
         </section>
       </main>
 
