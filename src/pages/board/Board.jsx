@@ -326,12 +326,14 @@ export default function Board() {
         </section>
       </main>
 
-      {/* Diag toggle — hidden corner tap (5-tap to open, visible close button) */}
+      {/* Diag toggle */}
       <button
         onClick={e => { e.stopPropagation(); setShowDiag(v => !v); }}
-        className="fixed bottom-2 right-2 w-8 h-8 rounded-full bg-transparent z-40 opacity-0 hover:opacity-20"
+        className="fixed bottom-3 right-3 z-40 bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white text-xs px-2 py-1 rounded-lg border border-gray-600 transition-colors"
         title="Toggle diagnostics"
-      />
+      >
+        🔬 Diag
+      </button>
 
       {/* Diagnostic panel */}
       {showDiag && (
