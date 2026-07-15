@@ -516,6 +516,45 @@ export default function Settings() {
           </div>
         </section>
 
+        {/* Display Links */}
+        <section className="bg-white rounded-xl shadow-sm p-5 space-y-3">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Display & Public Links</h2>
+          <p className="text-xs text-gray-400">Open these on a TV or display screen. No login required.</p>
+          {[
+            { label: 'Queue Board (TV Display)', desc: 'Full-screen queue with Now Calling banner and voice announcements', path: '/queue' },
+            { label: 'Waiting Room Board', desc: 'Alternate board — now serving + waiting list', path: '/board' },
+            { label: 'Self-Join Queue', desc: 'Guests scan QR or open this to add themselves to the queue', path: '/queue/join' },
+          ].map(({ label, desc, path }) => {
+            const url = `${window.location.origin}${import.meta.env.BASE_URL.replace(/\/$/, '')}${path}`
+            return (
+              <div key={path} className="flex items-center justify-between gap-4 border border-gray-200 rounded-lg px-4 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{label}</p>
+                  <p className="text-xs text-gray-400 mt-0.5">{desc}</p>
+                  <p className="text-xs font-mono text-indigo-600 mt-1 truncate">{url}</p>
+                </div>
+                <div className="flex gap-2 flex-shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => navigator.clipboard?.writeText(url).then(() => toast.success('Link copied!'))}
+                    className="text-xs px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    📋 Copy
+                  </button>
+                  <a
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs px-3 py-1.5 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition"
+                  >
+                    Open ↗
+                  </a>
+                </div>
+              </div>
+            )
+          })}
+        </section>
+
         <div className="flex justify-end pb-6">
           <button
             type="submit"
