@@ -78,9 +78,31 @@ export default function Board() {
   const [restaurantName, setRestaurantName] = useState('Restaurant');
   const [currentTime, setCurrentTime] = useState(new Date());
   const [callingBanner, setCallingBanner] = useState(null);
+  const [audioUnlocked, setAudioUnlocked] = useState(false);
+  const audioUnlockedRef = useRef(false);
   const queueCallSettings = useRef({ enabled: true, repeatCount: 3, repeatInterval: 5, languages: ['en-US'], template: '{greeting}. Token {token}, {name}, party of {persons}, please proceed to the counter.' });
   const lastCallAt = useRef(null);
+  const pendingCall = useRef(null);
   const { calcEwt } = useEwt();
+
+  function unlockAudio() {
+    // Speak a silent utterance to satisfy the browser's user-gesture requirement,
+    // then immediately cancel it — this primes the speech engine for real calls.
+    if (window.speechSynthesis) {
+      const primer = new SpeechSynthesisUtterance(' ');
+      primer.volume = 0;
+      window.speechSynthesis.speak(primer);
+      window.speechSynthesis.cancel();
+    }
+    audioUnlockedRef.current = true;
+    setAudioUnlocked(true);
+    // If a call arrived before the user tapped, speak it now
+    if (pendingCall.current) {
+      const { text, cfg } = pendingCall.current;
+      pendingCall.current = null;
+      speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval);
+    }
+  }
 
   // Clock — updates every second
   useEffect(() => {
@@ -131,7 +153,13 @@ export default function Board() {
       const text = buildText(cfg.template, data.token, data.guestName, data.persons ?? 1);
       setCallingBanner({ token: data.token, name: data.guestName });
       setTimeout(() => setCallingBanner(null), (cfg.repeatCount * (cfg.repeatInterval + 3)) * 1000);
-      speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval);
+
+      if (!audioUnlockedRef.current) {
+        // Audio locked — queue this call; it will speak once the operator taps the screen
+        pendingCall.current = { text, cfg };
+      } else {
+        speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval);
+      }
     });
     return () => unsub();
   }, []);
@@ -148,7 +176,17 @@ export default function Board() {
     pad(currentTime.getSeconds());
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white flex flex-col overflow-hidden">
+    <div className="min-h-screen bg-gray-900 text-white flex flex-col overflow-hidden" onClick={!audioUnlocked ? unlockAudio : undefined}>
+      {/* Audio unlock overlay — browsers require a user gesture before speech synthesis works */}
+      {!audioUnlocked && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/80 cursor-pointer select-none">
+          <div className="text-center space-y-4">
+            <div className="text-6xl animate-bounce">🔊</div>
+            <p className="text-2xl font-bold text-white">Tap anywhere to enable audio</p>
+            <p className="text-sm text-gray-400">Required once per session — voice announcements will work automatically after this</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="flex items-center justify-between px-4 md:px-8 py-4 md:py-5 bg-gray-800 border-b border-gray-700">
         <div>
