@@ -326,10 +326,10 @@ export default function Board() {
         </section>
       </main>
 
-      {/* Diag toggle */}
+      {/* Diag toggle — z-[60] keeps it above the audio-unlock overlay (z-50) */}
       <button
         onClick={e => { e.stopPropagation(); setShowDiag(v => !v); }}
-        className="fixed bottom-3 right-3 z-40 bg-gray-700 hover:bg-gray-600 text-gray-400 hover:text-white text-xs px-2 py-1 rounded-lg border border-gray-600 transition-colors"
+        className="fixed bottom-3 right-3 z-[60] bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-white text-xs px-3 py-1.5 rounded-lg border border-gray-500 transition-colors shadow-lg"
         title="Toggle diagnostics"
       >
         🔬 Diag
