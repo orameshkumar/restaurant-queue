@@ -31,14 +31,16 @@ function buildText(template, token, name, persons) {
     .replace(/{persons}/g, persons);
 }
 
-function speakInLanguages(text, languages, repeatCount, repeatInterval) {
-  if (!window.speechSynthesis) return;
+function speakInLanguages(text, languages, repeatCount, repeatInterval, onLog) {
+  if (!window.speechSynthesis) { onLog?.('ERROR: window.speechSynthesis not available'); return; }
   const langs = (languages && languages.length) ? languages : ['en-US'];
   let round = 0;
+  onLog?.(`Speaking: "${text}" | langs=${langs.join(',')} | repeat=${repeatCount} every ${repeatInterval}s`);
 
   function speakRound() {
-    if (round >= repeatCount) return;
+    if (round >= repeatCount) { onLog?.('All repeats done'); return; }
     round++;
+    onLog?.(`Round ${round}/${repeatCount}`);
     let i = 0;
 
     function speakNext() {
@@ -46,22 +48,22 @@ function speakInLanguages(text, languages, repeatCount, repeatInterval) {
         if (round < repeatCount) setTimeout(speakRound, repeatInterval * 1000);
         return;
       }
-      // Warm-up utterance — Web Speech API suppresses the first few ms of audio;
-      // speaking a near-silent comma first lets the engine stabilise before the real text.
       const warmup = new SpeechSynthesisUtterance(',');
       warmup.lang = langs[i];
       warmup.volume = 0;
       warmup.rate = 1;
       warmup.onend = () => {
+        onLog?.(`Warmup done for lang ${langs[i]}, speaking main text`);
         const utt = new SpeechSynthesisUtterance(text);
         utt.lang = langs[i];
         utt.rate = 0.88;
         utt.pitch = 1;
-        utt.onend = () => { i++; speakNext(); };
-        utt.onerror = () => { i++; speakNext(); };
+        utt.onstart = () => onLog?.(`▶ Speaking [${langs[i]}]`);
+        utt.onend = () => { onLog?.(`✓ Done [${langs[i]}]`); i++; speakNext(); };
+        utt.onerror = (e) => { onLog?.(`✗ Error [${langs[i]}]: ${e.error}`); i++; speakNext(); };
         window.speechSynthesis.speak(utt);
       };
-      warmup.onerror = warmup.onend;
+      warmup.onerror = (e) => { onLog?.(`Warmup error [${langs[i]}]: ${e.error}`); warmup.onend(); };
       window.speechSynthesis.speak(warmup);
     }
 
@@ -69,7 +71,6 @@ function speakInLanguages(text, languages, repeatCount, repeatInterval) {
   }
 
   window.speechSynthesis.cancel();
-  // Small delay after cancel() so the engine fully resets before the warm-up fires
   setTimeout(speakRound, 250);
 }
 
@@ -83,24 +84,46 @@ export default function Board() {
   const queueCallSettings = useRef({ enabled: true, repeatCount: 3, repeatInterval: 5, languages: ['en-US'], template: '{greeting}. Token {token}, {name}, party of {persons}, please proceed to the counter.' });
   const lastCallAt = useRef(null);
   const pendingCall = useRef(null);
+  const [showDiag, setShowDiag] = useState(false);
+  const [diagLogs, setDiagLogs] = useState([]);
+  const [diagInfo, setDiagInfo] = useState({ synthAvailable: false, voices: [], lastCall: null, settingsReceived: false });
   const { calcEwt } = useEwt();
 
+  function diagLog(msg) {
+    const ts = new Date().toLocaleTimeString();
+    setDiagLogs(prev => [`[${ts}] ${msg}`, ...prev].slice(0, 30));
+  }
+
+  // Populate static diag info once on mount
+  useEffect(() => {
+    const synthAvailable = !!window.speechSynthesis;
+    const loadVoices = () => {
+      const voices = window.speechSynthesis?.getVoices().map(v => `${v.name} (${v.lang})`) ?? [];
+      setDiagInfo(d => ({ ...d, synthAvailable, voices }));
+    };
+    loadVoices();
+    window.speechSynthesis?.addEventListener('voiceschanged', loadVoices);
+    return () => window.speechSynthesis?.removeEventListener('voiceschanged', loadVoices);
+  }, []);
+
   function unlockAudio() {
-    // Speak a silent utterance to satisfy the browser's user-gesture requirement,
-    // then immediately cancel it — this primes the speech engine for real calls.
+    diagLog('User tapped — unlocking audio');
     if (window.speechSynthesis) {
       const primer = new SpeechSynthesisUtterance(' ');
       primer.volume = 0;
+      primer.onend = () => diagLog('Primer utterance ended — audio unlocked');
+      primer.onerror = (e) => diagLog(`Primer error: ${e.error}`);
       window.speechSynthesis.speak(primer);
-      window.speechSynthesis.cancel();
+    } else {
+      diagLog('ERROR: window.speechSynthesis is undefined');
     }
     audioUnlockedRef.current = true;
     setAudioUnlocked(true);
-    // If a call arrived before the user tapped, speak it now
     if (pendingCall.current) {
+      diagLog('Playing queued call now');
       const { text, cfg } = pendingCall.current;
       pendingCall.current = null;
-      speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval);
+      speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval, diagLog);
     }
   }
 
@@ -132,7 +155,11 @@ export default function Board() {
       if (!snap.empty) {
         const data = snap.docs[0].data();
         if (data.restaurantName) setRestaurantName(data.restaurantName);
-        if (data.queueCall) queueCallSettings.current = { ...queueCallSettings.current, ...data.queueCall };
+        if (data.queueCall) {
+          queueCallSettings.current = { ...queueCallSettings.current, ...data.queueCall };
+          setDiagInfo(d => ({ ...d, settingsReceived: true, queueCall: data.queueCall }));
+          diagLog(`Settings loaded — enabled=${data.queueCall.enabled}, repeat=${data.queueCall.repeatCount}, langs=${(data.queueCall.languages||[]).join(',')}`);
+        }
       }
     });
     return () => unsub();
@@ -140,27 +167,36 @@ export default function Board() {
 
   // Firestore: activeCall listener — triggers voice announcement
   useEffect(() => {
-    const unsub = onSnapshot(doc(db, 'restaurantSettings', 'activeCall'), (snap) => {
-      if (!snap.exists()) return;
-      const data = snap.data();
-      const calledAt = data.calledAt?.seconds ?? 0;
-      if (calledAt === lastCallAt.current) return;
-      lastCallAt.current = calledAt;
+    diagLog('activeCall listener registered');
+    const unsub = onSnapshot(
+      doc(db, 'restaurantSettings', 'activeCall'),
+      (snap) => {
+        if (!snap.exists()) { diagLog('activeCall doc does not exist yet'); return; }
+        const data = snap.data();
+        const calledAt = data.calledAt?.seconds ?? 0;
+        diagLog(`activeCall snapshot — token=${data.token}, calledAt=${calledAt}, lastSeen=${lastCallAt.current}`);
+        if (calledAt === lastCallAt.current) { diagLog('Duplicate snapshot, ignoring'); return; }
+        lastCallAt.current = calledAt;
+        setDiagInfo(d => ({ ...d, lastCall: { token: data.token, name: data.guestName, persons: data.persons, calledAt } }));
 
-      const cfg = queueCallSettings.current;
-      if (!cfg.enabled) return;
+        const cfg = queueCallSettings.current;
+        diagLog(`cfg.enabled=${cfg.enabled}, audioUnlocked=${audioUnlockedRef.current}`);
+        if (!cfg.enabled) { diagLog('Voice disabled in settings, skipping'); return; }
 
-      const text = buildText(cfg.template, data.token, data.guestName, data.persons ?? 1);
-      setCallingBanner({ token: data.token, name: data.guestName });
-      setTimeout(() => setCallingBanner(null), (cfg.repeatCount * (cfg.repeatInterval + 3)) * 1000);
+        const text = buildText(cfg.template, data.token, data.guestName, data.persons ?? 1);
+        diagLog(`Built text: "${text}"`);
+        setCallingBanner({ token: data.token, name: data.guestName });
+        setTimeout(() => setCallingBanner(null), (cfg.repeatCount * (cfg.repeatInterval + 3)) * 1000);
 
-      if (!audioUnlockedRef.current) {
-        // Audio locked — queue this call; it will speak once the operator taps the screen
-        pendingCall.current = { text, cfg };
-      } else {
-        speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval);
-      }
-    });
+        if (!audioUnlockedRef.current) {
+          diagLog('Audio not yet unlocked — queuing call');
+          pendingCall.current = { text, cfg };
+        } else {
+          speakInLanguages(text, cfg.languages, cfg.repeatCount, cfg.repeatInterval, diagLog);
+        }
+      },
+      (err) => diagLog(`activeCall listener ERROR: ${err.message}`)
+    );
     return () => unsub();
   }, []);
 
@@ -289,6 +325,87 @@ export default function Board() {
           )}
         </section>
       </main>
+
+      {/* Diag toggle — hidden corner tap (5-tap to open, visible close button) */}
+      <button
+        onClick={e => { e.stopPropagation(); setShowDiag(v => !v); }}
+        className="fixed bottom-2 right-2 w-8 h-8 rounded-full bg-transparent z-40 opacity-0 hover:opacity-20"
+        title="Toggle diagnostics"
+      />
+
+      {/* Diagnostic panel */}
+      {showDiag && (
+        <div className="fixed inset-0 z-50 bg-black/90 text-green-300 font-mono text-xs p-4 overflow-y-auto flex flex-col gap-3"
+          onClick={e => e.stopPropagation()}>
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-white font-bold text-sm">🔬 Board Diagnostics</span>
+            <button onClick={() => setShowDiag(false)} className="text-white text-lg leading-none px-2">✕</button>
+          </div>
+
+          {/* Status grid */}
+          <div className="grid grid-cols-2 gap-2">
+            <div className={`rounded p-2 ${diagInfo.synthAvailable ? 'bg-green-900' : 'bg-red-900'}`}>
+              <div className="text-white font-semibold">Speech API</div>
+              <div>{diagInfo.synthAvailable ? '✓ Available' : '✗ NOT available'}</div>
+            </div>
+            <div className={`rounded p-2 ${audioUnlocked ? 'bg-green-900' : 'bg-yellow-900'}`}>
+              <div className="text-white font-semibold">Audio unlock</div>
+              <div>{audioUnlocked ? '✓ Unlocked' : '⚠ Waiting for tap'}</div>
+            </div>
+            <div className={`rounded p-2 ${diagInfo.settingsReceived ? 'bg-green-900' : 'bg-red-900'}`}>
+              <div className="text-white font-semibold">Settings loaded</div>
+              <div>{diagInfo.settingsReceived ? `✓ enabled=${diagInfo.queueCall?.enabled}` : '✗ Not received'}</div>
+            </div>
+            <div className={`rounded p-2 ${diagInfo.lastCall ? 'bg-green-900' : 'bg-gray-800'}`}>
+              <div className="text-white font-semibold">Last call</div>
+              <div>{diagInfo.lastCall ? `${diagInfo.lastCall.token} — ${diagInfo.lastCall.name}` : 'None yet'}</div>
+            </div>
+          </div>
+
+          {/* Settings detail */}
+          {diagInfo.queueCall && (
+            <div className="bg-gray-900 rounded p-2 space-y-0.5">
+              <div className="text-white font-semibold mb-1">Queue call config</div>
+              <div>enabled: <span className="text-yellow-300">{String(diagInfo.queueCall.enabled)}</span></div>
+              <div>repeat: <span className="text-yellow-300">{diagInfo.queueCall.repeatCount}×</span> every <span className="text-yellow-300">{diagInfo.queueCall.repeatInterval}s</span></div>
+              <div>languages: <span className="text-yellow-300">{(diagInfo.queueCall.languages || []).join(', ')}</span></div>
+              <div>template: <span className="text-yellow-300">{diagInfo.queueCall.template}</span></div>
+            </div>
+          )}
+
+          {/* Available voices */}
+          <div className="bg-gray-900 rounded p-2">
+            <div className="text-white font-semibold mb-1">Available voices ({diagInfo.voices.length})</div>
+            {diagInfo.voices.length === 0
+              ? <div className="text-red-400">No voices loaded — browser may not support TTS or voices not yet populated</div>
+              : <div className="max-h-32 overflow-y-auto space-y-0.5">{diagInfo.voices.map((v, i) => <div key={i}>{v}</div>)}</div>
+            }
+          </div>
+
+          {/* Test speak button */}
+          <button
+            onClick={() => {
+              diagLog('Manual test speak triggered');
+              const cfg = queueCallSettings.current;
+              speakInLanguages('Testing. Good morning. Token A 1, John, party of 2, please proceed to the counter.', cfg.languages, 1, 0, diagLog);
+            }}
+            className="bg-indigo-700 hover:bg-indigo-600 text-white rounded px-4 py-2 text-sm font-semibold"
+          >
+            ▶ Test Speak Now
+          </button>
+
+          {/* Log */}
+          <div className="bg-gray-900 rounded p-2 flex-1">
+            <div className="text-white font-semibold mb-1">Event log</div>
+            <div className="space-y-0.5 max-h-48 overflow-y-auto">
+              {diagLogs.length === 0
+                ? <div className="text-gray-500">No events yet</div>
+                : diagLogs.map((l, i) => <div key={i}>{l}</div>)
+              }
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Bottom Ticker */}
       <footer className="bg-indigo-800 py-3 overflow-hidden">
