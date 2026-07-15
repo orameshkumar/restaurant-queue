@@ -107,20 +107,14 @@ function calcFit(cW, cH, minCount, gap) {
   return best;
 }
 
-function tokenFontClass(h) {
-  if (h < 120) return 'text-xl';
-  if (h < 160) return 'text-2xl';
-  if (h < 200) return 'text-3xl';
-  if (h < 250) return 'text-4xl';
-  return 'text-5xl';
-}
-
 function TokenCard({ b, globalIdx, card, ewtData, animDelay }) {
   const isNext = globalIdx === 0;
   const ewt = ewtData[globalIdx];
+  const tokenFs = Math.round(Math.max(18, card.h * 0.30));
+  const labelFs  = Math.round(Math.max(10, card.h * 0.10));
+  const badgeFs  = Math.round(Math.max(9,  card.h * 0.09));
   return (
     <div
-      key={b.id}
       style={{
         width: card.w,
         height: card.h,
@@ -130,26 +124,26 @@ function TokenCard({ b, globalIdx, card, ewtData, animDelay }) {
       className={`rounded-2xl border flex flex-col items-center justify-center gap-1 px-2
         ${isNext ? 'bg-amber-500/20 border-amber-500/60' : 'bg-gray-800 border-gray-700'}`}
     >
-      <div className={`${tokenFontClass(card.h)} font-black tracking-tight ${isNext ? 'text-amber-400' : 'text-white'}`}>
+      <div style={{ fontSize: tokenFs }} className={`font-black tracking-tight leading-none ${isNext ? 'text-amber-400' : 'text-white'}`}>
         {b.token ?? b.tokenNumber ?? b.queueSequence ?? '—'}
       </div>
-      <div className="text-xs font-semibold text-gray-200 text-center truncate w-full px-1">
+      <div style={{ fontSize: labelFs }} className="font-semibold text-gray-200 text-center truncate w-full px-1">
         {maskName(b.guestName || 'Guest')}
       </div>
-      {card.h >= 130 && (
-        <div className="text-xs text-gray-400">
+      {card.h >= 110 && (
+        <div style={{ fontSize: badgeFs }} className="text-gray-400">
           👥 {b.partySize}{b.tablePreference && b.tablePreference !== 'Any' ? ` · ${b.tablePreference}` : ''}
         </div>
       )}
-      {card.h >= 110 && (
-        <div className={`text-xs font-bold px-2 py-0.5 rounded-full mt-0.5 ${
+      {card.h >= 100 && (
+        <div style={{ fontSize: badgeFs }} className={`font-bold px-2 py-0.5 rounded-full mt-0.5 ${
           isNext ? 'bg-amber-500 text-white' : 'bg-gray-700 text-gray-300'
         }`}>
           {isNext && ewt === 0 ? '● Ready!' : ewt === 0 ? 'Soon' : `~${ewt}m`}
         </div>
       )}
-      {isNext && card.h >= 140 && (
-        <div className="text-xs font-bold text-amber-400 animate-pulse">Next up</div>
+      {isNext && card.h >= 130 && (
+        <div style={{ fontSize: badgeFs }} className="font-bold text-amber-400 animate-pulse">Next up</div>
       )}
     </div>
   );
