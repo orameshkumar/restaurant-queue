@@ -73,6 +73,131 @@ function speakCall(text, languages, repeatCount, repeatInterval) {
 
 const TODAY = new Date().toISOString().split('T')[0]
 
+// Card dimensions + gap (px) — used for overflow math
+const CARD_W = 200
+const CARD_H = 220
+const CARD_GAP = 12
+
+function QueueGrid({ waiting, calcEwt }) {
+  const containerRef = useRef(null)
+  const [maxCards, setMaxCards] = useState(20)
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    function measure() {
+      const { width, height } = el.getBoundingClientRect()
+      const cols = Math.max(1, Math.floor((width + CARD_GAP) / (CARD_W + CARD_GAP)))
+      const rows = Math.max(1, Math.floor((height + CARD_GAP) / (CARD_H + CARD_GAP)))
+      setMaxCards(cols * rows)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  if (waiting.length === 0) {
+    return (
+      <div ref={containerRef} className="flex-1 flex flex-col items-center justify-center text-gray-500 gap-3 p-6">
+        <p className="text-6xl">🎉</p>
+        <p className="text-xl font-semibold">No one waiting right now!</p>
+        <p className="text-sm">Walk-ins welcome — scan the QR to join.</p>
+      </div>
+    )
+  }
+
+  const overflow = waiting.length > maxCards
+  const visible = overflow ? waiting.slice(0, maxCards - 1) : waiting
+
+  // Precompute EWT for all visible cards
+  let cum = 0
+  const ewtData = waiting.map(b => {
+    const ewt = calcEwt(b.tablePreference ?? 'Any', cum)
+    cum += b.partySize || 2
+    return ewt
+  })
+
+  return (
+    <div
+      ref={containerRef}
+      className="flex-1 overflow-hidden p-4"
+      style={{ display: 'flex', alignContent: 'flex-start', flexWrap: 'wrap', gap: CARD_GAP }}
+    >
+      <style>{`
+        @keyframes tokenSlideIn {
+          from { opacity: 0; transform: translateY(18px) scale(0.93); }
+          to   { opacity: 1; transform: translateY(0)   scale(1); }
+        }
+        @keyframes tokenPulseGlow {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(245,158,11,0); }
+          50%       { box-shadow: 0 0 18px 4px rgba(245,158,11,0.35); }
+        }
+      `}</style>
+
+      {visible.map((b, idx) => {
+        const isNext = idx === 0
+        const ewt = ewtData[idx]
+        return (
+          <div
+            key={b.id}
+            style={{
+              width: CARD_W,
+              height: CARD_H,
+              animation: `tokenSlideIn 0.4s ease both ${idx * 40}ms${isNext ? ', tokenPulseGlow 2.4s ease-in-out infinite' : ''}`,
+            }}
+            className={`flex-shrink-0 rounded-2xl border flex flex-col items-center justify-center gap-2 px-3
+              ${isNext
+                ? 'bg-amber-500/20 border-amber-500/60'
+                : 'bg-gray-800 border-gray-700'
+              }`}
+          >
+            {/* Token number */}
+            <div className={`text-4xl font-black tracking-tight ${isNext ? 'text-amber-400' : 'text-white'}`}>
+              {b.token ?? '—'}
+            </div>
+
+            {/* Name */}
+            <div className="text-sm font-semibold text-gray-200 text-center truncate w-full px-1">
+              {maskName(b.guestName)}
+            </div>
+
+            {/* Party size */}
+            <div className="text-xs text-gray-400">
+              👥 {b.partySize}{b.tablePreference && b.tablePreference !== 'Any' ? ` · ${b.tablePreference}` : ''}
+            </div>
+
+            {/* EWT */}
+            <div className={`text-xs font-bold mt-1 px-2.5 py-0.5 rounded-full ${
+              isNext ? 'bg-amber-500 text-white' : 'bg-gray-700 text-gray-300'
+            }`}>
+              {isNext && ewt === 0 ? '● Ready!' : ewt === 0 ? 'Soon' : `~${ewt}m`}
+            </div>
+
+            {isNext && (
+              <div className="text-xs font-bold text-amber-400 animate-pulse">Next up</div>
+            )}
+          </div>
+        )
+      })}
+
+      {/* Overflow card */}
+      {overflow && (
+        <div
+          style={{ width: CARD_W, height: CARD_H, animation: 'tokenSlideIn 0.4s ease both' }}
+          className="flex-shrink-0 rounded-2xl border border-gray-600 bg-gray-800/60 flex flex-col items-center justify-center gap-2 px-3"
+        >
+          <div className="text-3xl">⏳</div>
+          <div className="text-sm font-bold text-gray-300 text-center">
+            +{waiting.length - (maxCards - 1)} more
+          </div>
+          <div className="text-xs text-gray-500 text-center">tokens in queue</div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function maskName(name = '') {
   const parts = name.trim().split(' ')
   if (parts.length === 1) return parts[0]
@@ -274,65 +399,8 @@ export default function QueueBoard() {
         </div>
       )}
 
-      {/* Queue list — full width */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {waiting.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-gray-500 gap-3">
-            <p className="text-6xl">🎉</p>
-            <p className="text-xl font-semibold">No one waiting right now!</p>
-            <p className="text-sm">Walk-ins welcome — scan the QR to join.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {/* Precompute cumulative persons-ahead once — O(n) */}
-            {(() => {
-              let cum = 0;
-              const ewtData = waiting.map(b => {
-                const ewt = calcEwt(b.tablePreference ?? 'Any', cum);
-                cum += b.partySize || 2;
-                return ewt;
-              });
-              return waiting.map((b, idx) => (
-              <div
-                key={b.id}
-                className={`flex items-center gap-4 rounded-2xl px-5 py-4 border ${
-                  idx === 0
-                    ? 'bg-amber-500/20 border-amber-500/50 ring-1 ring-amber-500/30'
-                    : 'bg-gray-800 border-gray-700'
-                }`}
-              >
-                {/* Info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs font-mono bg-gray-700 text-gray-300 px-1.5 py-0.5 rounded">
-                      #{b.token ?? '—'}
-                    </span>
-                    {idx === 0 && (
-                      <span className="text-xs font-bold text-amber-400 animate-pulse">● Next up</span>
-                    )}
-                  </div>
-                  <p className="text-lg font-bold text-white truncate">{maskName(b.guestName)}</p>
-                  <p className="text-xs text-gray-400">👥 {b.partySize}{b.tablePreference && b.tablePreference !== 'Any' ? ` · ${b.tablePreference}` : ''}</p>
-                </div>
-
-                {/* EWT — precomputed above */}
-                <div className="text-right flex-shrink-0">
-                  <p className="text-xs text-gray-500">Est. wait</p>
-                  {(() => {
-                    const ewt = ewtData[idx];
-                    return (
-                      <p className={`text-xl font-bold ${idx === 0 ? 'text-amber-400' : 'text-gray-300'}`}>
-                        {ewt === 0 ? (idx === 0 ? 'Ready!' : 'Soon') : `~${ewt}m`}
-                      </p>
-                    )
-                  })()}
-                </div>
-              </div>
-            ));
-            })()}
-          </div>
-        )}
-      </div>
+      {/* Queue grid — fixed-size animated token cards */}
+      <QueueGrid waiting={waiting} calcEwt={calcEwt} />
     </div>
   )
 }
